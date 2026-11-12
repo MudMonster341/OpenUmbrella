@@ -33,7 +33,11 @@ const CUT_THRESHOLD = 2.0;
 // render as 48% motionless, because that displacement is sub-pixel once
 // projected. Anything at or below this threshold is a dead frame on screen
 // however non-zero it is in the maths.
-const STILL_EPSILON = 4e-3;
+const STILL_EPSILON = 4e-3 * (cam.scale / 20);
+
+/* A cut, likewise, is a jump relative to the scene: 2 world units is a
+   teleport across a room and a small step across a city. */
+const CUT_SCALED = CUT_THRESHOLD * (cam.scale / 20);
 
 /* M1 is an INTERVAL standard, not a per-frame one: filmcheck fails a render
    when the picture is motionless for >= 0.4s. A handful of isolated
@@ -67,7 +71,7 @@ for (let f = 1; f <= plan.frames; f++) {
   } else {
     runFrames = 0;
   }
-  if (step > CUT_THRESHOLD) jumpFrames.push({ frame: f, step: step.toFixed(3) });
+  if (step > CUT_SCALED) jumpFrames.push({ frame: f, step: step.toFixed(3) });
   minStep = Math.min(minStep, step);
   maxStep = Math.max(maxStep, step);
   maxLookStep = Math.max(maxLookStep, lookStep);

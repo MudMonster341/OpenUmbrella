@@ -180,3 +180,37 @@ published work. ADRs 0007 and 0008 still stand.
 **Next:** Build zombie-p1 with the upgraded render recipe. Prototype the character two ways — 3D
 low-poly vs 2D composited — and choose by looking, not by theory. Narration stays blocked until
 VoiceStudio setup is completed by hand.
+
+---
+
+## 2026-11-13 — zombie-p1 built; onecam made scale-aware. SESSION CUT BY USAGE LIMIT
+
+**Did:**
+- Built `films/zombie-p1`: one room, two characters with faces, a practical lamp, shadows,
+  NeutralToneMapping, bloom. Rendered 1080x1920, 35.3s, 13.7 MB, 2m38s.
+- Made onecam **scale-aware** — three separate bugs, all the same class (absolute world units in a
+  rig used at wildly different scales):
+  1. easing/duration thresholds were absolute, so every room-sized move read as "a nudge" and one
+     curve was used throughout (M2 fail);
+  2. `verify.mjs`'s still-frame epsilon was ~12x too strict for a metre-scale interior;
+  3. **drift rate must be per beat**, scaled by that beat's own subject distance — one global rate
+     cannot serve a 1.2m close-up and a 3.4m wide. The shelf beat held a motionless frame for 5.2s
+     while the near beats passed.
+- Paris re-verified after every change: no regression.
+
+**Why:** The Paris film looked basic because the gates measure pixels changing, not quality.
+zombie-p1 applies the craft standard: real shadows, tone mapping, a single practical, character
+scale, and faces. Staging took five measured passes — the camera flew through furniture, the lamp
+sat on the camera-to-subject axis and blew the frame out with bloom, and the close-up was pointed
+at the BACK of Claude's head.
+
+**Failures:** none new in ERRORS.md; the staging failures are logged in the film's README pattern.
+
+**STATE AT CUT-OFF — read this first next session:**
+- `engine/onecam` passes verify on both films with per-beat drift. **The zombie render on disk
+  PREDATES that fix** and still fails filmcheck M1 (8 intervals, worst 1.5s, all in the far beats).
+  **Re-render zombie-p1 and re-run filmcheck — that is step one.**
+- Not done: audio (VoiceStudio setup still incomplete), 60fps final, the shelf beat is the weakest
+  frame, the close-up's face is crude.
+- A subagent researching flashloop.ai was still running at cut-off; if it finished it wrote
+  `research/flashloop/FINDINGS.md`. Check whether that file exists.

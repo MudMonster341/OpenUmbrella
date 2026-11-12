@@ -48,11 +48,12 @@ export const Ease = {
  * Thresholds are deliberately explicit so they can be tuned per film and
  * recorded, rather than being hidden inside a "feel" constant.
  */
-export function curveForDistance(distance) {
-  if (distance < 2) return Ease.outCubic;     // a nudge — settle quickly
-  if (distance < 8) return Ease.inOutCubic;   // a move — symmetric
-  if (distance < 20) return Ease.inOutQuint;  // a travel — ease harder
-  return Ease.outExpo;                        // a journey — long tail
+export function curveForDistance(distance, scale = 20) {
+  const d = distance / (scale / 20); // normalise to the reference scale
+  if (d < 2) return Ease.outCubic;     // a nudge — settle quickly
+  if (d < 8) return Ease.inOutCubic;   // a move — symmetric
+  if (d < 20) return Ease.inOutQuint;  // a travel — ease harder
+  return Ease.outExpo;                 // a journey — long tail
 }
 
 /**
@@ -60,10 +61,12 @@ export function curveForDistance(distance) {
  * the film instead of every move taking the same time regardless of length.
  * Returns seconds. `pace` scales the whole film's tempo.
  */
-export function durationForDistance(distance, pace = 1.0) {
+export function durationForDistance(distance, pace = 1.0, scale = 20) {
   // sqrt so long moves do not take proportionally forever; floor so a tiny
-  // move still reads as deliberate.
-  return Math.max(0.6, Math.sqrt(distance) * 0.55) * pace;
+  // move still reads as deliberate. Normalised to the reference scale, or a
+  // metre-scale interior would cross its whole room in the floor duration.
+  const d = distance / (scale / 20);
+  return Math.max(0.6, Math.sqrt(d) * 0.55) * pace;
 }
 
 /* ------------------------------------------------------------------ math  */
@@ -95,6 +98,19 @@ export class OneCam {
   static DRIFT_LEAD = 0.45;
 
   /**
+   * The world scale the default constants were calibrated at — the typical
+   * camera-to-subject distance of the Paris film, in its world units.
+   *
+   * Everything spatial in this rig scales with the scene. Apparent motion
+   * goes as linear-motion / distance-to-subject, so the same world-unit step
+   * that is invisible at 20 units is obvious at 1.5. Hard-coding the
+   * constants made a metre-scale interior fail both M1 and M2 on its first
+   * plan: every room distance registered as "a nudge" so one easing curve was
+   * used throughout, and the still-frame threshold was ~12x too strict.
+   */
+  static REF_SCALE = 20;
+
+  /**
    * @param {object} sheet  beat sheet — see beatsheet.schema.json
    * @param {object} opts   { fps, pace, motionFloor }
    */
@@ -103,7 +119,7 @@ export class OneCam {
     this.pace = opts.pace ?? sheet.pace ?? 1.0;
     // Residual oscillation, in world units of amplitude. On its own this is
     // NOT enough for M1 — see holdDrift.
-    this.motionFloor = opts.motionFloor ?? sheet.motionFloor ?? 0.06;
+    this.motionFloor = opts.motionFloor ?? sheet.motionFloor ?? null;
     // Hold drift, in world units per second, along the view direction.
     //
     // Calibrated against a real render, not guessed. The first version relied
@@ -127,12 +143,32 @@ export class OneCam {
     // The alternative — adding animated grain so every frame differs — would
     // make filmcheck pass without the film moving. That is gaming our own
     // metric, so it is not done.
-    this.holdDrift = opts.holdDrift ?? sheet.holdDrift ?? 1.2;
+    this.holdDrift = opts.holdDrift ?? sheet.holdDrift ?? null;
     this.beats = sheet.beats ?? [];
     if (this.beats.length < 2) {
       throw new Error("onecam: a continuous move needs at least 2 beats");
     }
+
+    /* Scene scale: the median camera-to-subject distance. Every spatial
+       default below is derived from it, so an author does not have to retune
+       the rig for a room versus a city — they just author the beats. */
+    this.scale = opts.scale ?? sheet.scale ?? this._computeScale();
+    const k = this.scale / OneCam.REF_SCALE;
+    if (this.motionFloor === undefined || this.motionFloor === null) this.motionFloor = 0.06 * k;
+    if (this.holdDrift === undefined || this.holdDrift === null) this.holdDrift = 1.2 * k;
+
     this._buildTimeline();
+  }
+
+  /** Median camera-to-subject distance across the beats. */
+  _computeScale() {
+    const d = this.beats
+      .map((b) => {
+        const l = b.lookAt ?? [0, 0, 0];
+        return Math.hypot(l[0] - b.position[0], l[1] - b.position[1], l[2] - b.position[2]);
+      })
+      .sort((a, b) => a - b);
+    return d[Math.floor(d.length / 2)] || OneCam.REF_SCALE;
   }
 
   _buildTimeline() {
@@ -146,7 +182,7 @@ export class OneCam {
       const travel =
         i === 0
           ? 0
-          : beat.travel ?? durationForDistance(distance, this.pace);
+          : beat.travel ?? durationForDistance(distance, this.pace, this.scale);
       const hold = beat.hold ?? 1.2;
       const seg = {
         index: i,
@@ -155,7 +191,9 @@ export class OneCam {
         travelStart: t,
         travelEnd: t + travel,
         holdEnd: t + travel + hold,
-        curve: beat.curve ? Ease[beat.curve] ?? curveForDistance(distance) : curveForDistance(distance),
+        curve: beat.curve
+          ? Ease[beat.curve] ?? curveForDistance(distance, this.scale)
+          : curveForDistance(distance, this.scale),
       };
       /* Where the camera actually ENDS this beat, after its hold drift.
          The next travel must start from here, not from the beat's authored
@@ -167,8 +205,20 @@ export class OneCam {
          0.40s and 0.50s — just over the 0.4s limit. Overlapping the two
          velocity sources removes the shoulder. */
       seg.lead = Math.min(OneCam.DRIFT_LEAD, travel);
+
+      /* Drift rate is PER BEAT, scaled by that beat's own subject distance.
+         A single global rate cannot serve both a 1.2m close-up and a 3.4m
+         wide: the rate that is right up close is invisible far away.
+         Measured on zombie-p1 — the near beats passed while the shelf beat,
+         3.4m out, held a motionless frame for 5.2 seconds. */
+      const look = beat.lookAt ?? [0, 0, 0];
+      const subject = Math.hypot(
+        look[0] - beat.position[0], look[1] - beat.position[1], look[2] - beat.position[2]
+      ) || this.scale;
+      seg.driftRate = this.holdDrift * (subject / this.scale);
+
       const dir = this._driftDir(beat, i);
-      const push = this.holdDrift * (hold + seg.lead);
+      const push = seg.driftRate * (hold + seg.lead);
       seg.exit = [
         beat.position[0] + dir[0] * push,
         beat.position[1] + dir[1] * push,
@@ -288,7 +338,7 @@ export class OneCam {
     if (t >= driftFrom) {
       const held = t - driftFrom;
       const dir = this._driftDir(seg.beat, seg.index);
-      const push = this.holdDrift * held;
+      const push = (seg.driftRate ?? this.holdDrift) * held;
       base = [base[0] + dir[0] * push, base[1] + dir[1] * push, base[2] + dir[2] * push];
     }
 
