@@ -1,0 +1,20 @@
+# Vendored third-party repos — cloned, never edited, re-cloneable from docs/REPO_REGISTRY.md
+OpenMontage/
+vendor/
+
+# Secrets
+.env
+*.key
+
+# Rendered output and working media
+renders/
+projects/
+*.mp4
+*.wav
+*.mp3
+
+# Python / Node
+.venv/
+__pycache__/
+*.pyc
+node_modules/
