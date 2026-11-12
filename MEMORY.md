@@ -138,3 +138,45 @@ A passing check does not show how it looks.
 
 **Next:** The prototype is 14.9s against a 30-40s target and silent. Extend the beat sheet, then
 install VoiceStudio for narration and captions. Neither is started.
+
+---
+
+## 2026-11-13 — Installed the toolchain; diagnosed the real quality gap
+
+**Did:**
+- Installed VoiceStudio 0.5.8 (read the installer first; it verifies SHA256 against published sums).
+  It ships a full CLI — `speak`, `voices`, `models`, `dub` — so it is pipeline-usable. **Blocked on
+  one GUI step:** first-run setup and model choice, deliberately not automated because it means a
+  multi-gigabyte download.
+- Cloned onetake, lemo-opuscar and ClaudeAnimationBase into `vendor/`, and wrote
+  [docs/REPO_PLAYBOOK.md](docs/REPO_PLAYBOOK.md) covering what each is for and the licence
+  boundary on each.
+- Wrote [docs/ANIMATION_STANDARD.md](docs/ANIMATION_STANDARD.md) — the craft layer GOAL.md assumes
+  and does not contain.
+- Drafted [films/zombie-p1/BRIEF.md](films/zombie-p1/BRIEF.md): Part 1, one room, two characters,
+  rationing food, with the reads written out.
+
+**Why:** The Paris film passes every automated gate and still looks amateur, which means the gates
+measure the wrong half. Reading what the reference repos actually do made the gap specific rather
+than vague: no shadows, no tone mapping, no env map, no post-processing, 30fps with no motion blur,
+and flat untextured surfaces. The remaining perceived choppiness at 0% motionless is almost
+certainly 30fps judder on a continuously moving camera with hard-edged geometry.
+
+The biggest single failure is not the renderer though — it is that the character is a 40-pixel
+capsule in every shot. The character-animation reference puts it plainly: tiny characters are for
+wide establishing shots only, never for a whole film. Ours was 100% establishing shot, so the
+emotional arc in the brief never reached the screen at all.
+
+That is why the zombie film is set in one room. Two characters, close camera, one practical light:
+it fixes character scale by construction, makes real shadows cheap, and low-key lighting hides the
+lack of surface detail that Paris daylight exposed.
+
+**Decisions:** [ADR 0010](decisions/0010-install-reference-repos-with-a-boundary.md) — the repos
+are installed as reference and local tooling; their non-commercial text and code stay out of
+published work. ADRs 0007 and 0008 still stand.
+
+**Failures:** none new.
+
+**Next:** Build zombie-p1 with the upgraded render recipe. Prototype the character two ways — 3D
+low-poly vs 2D composited — and choose by looking, not by theory. Narration stays blocked until
+VoiceStudio setup is completed by hand.
