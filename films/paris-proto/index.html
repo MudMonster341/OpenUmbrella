@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      :root {
+        --sky-high: #2b4c6f;
+        --sky-low: #f2b377;
+        --ink: #fff6ec;
+        --accent: #d97757;
+        --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0; width: 1080px; height: 1920px;
+        overflow: hidden; background: var(--sky-high);
+      }
+      #root { width: 100%; height: 100%; position: relative; font-family: var(--font-display); }
+      #three-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      /* Scrim: the sky at golden hour is far too bright to carry text on its
+         own — the contrast gate caught 2.89:1. It fades in with the title so
+         the film is not darkened for the 11s before that. */
+      #scrim {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 46%;
+        background: linear-gradient(to top, rgba(8, 12, 18, 0.88) 0%, rgba(8, 12, 18, 0.62) 42%, rgba(8, 12, 18, 0) 100%);
+        opacity: 0; pointer-events: none;
+      }
+      #title {
+        position: absolute; left: 80px; bottom: 260px;
+        color: var(--ink); font-size: 96px; font-weight: 300;
+        letter-spacing: -0.03em; line-height: 0.95;
+        text-shadow: 0 4px 40px rgba(0, 0, 0, 0.45);
+        opacity: 0;
+      }
+      #title b { font-weight: 600; color: #ffa98a; }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="14.94"
+      data-width="1080"
+      data-height="1920"
+    >
+      <canvas id="three-layer" class="clip" data-start="0" data-duration="14.94" data-track-index="0" data-layout-allow-overflow></canvas>
+      <div id="scrim" class="clip" data-start="0" data-duration="14.94" data-track-index="1"></div>
+      <h1 id="title" class="clip" data-start="0" data-duration="14.94" data-track-index="1">
+        Claude in <b>Paris</b>
+      </h1>
+    </div>
+
+    <script type="module">
+      import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.181.2/+esm";
+      import { OneCam } from "./lib/onecam.js";
+
+      /* Beats inlined deliberately: the Three adapter forbids fetching at seek
+         time, and a top-level fetch would race validation. Authoring source of
+         truth is engine/onecam/paris.beats.json — keep them in step. */
+      const SHEET = {
+        title: "Claude in Paris",
+        fps: 30,
+        pace: 1.0,
+        motionFloor: 0.06,
+        beats: [
+          /* Camera stays inside the cleared avenue (|x| < 4) and the river
+             corridor (-11 < z < 1), above quay height. The first pass put
+             beats 4 and 5 inside the far-bank blocks: the payoff shot was a
+             wall. Gate 2 stills caught it before 450 frames were rendered. */
+          /* Pass 3: lookAt raised throughout — a 9:16 frame aimed level fills
+             its bottom third with empty ground. The tower is framed from
+             across the river, not from its base, or it reads as a brown cone
+             instead of a silhouette. */
+          { name: "arrival",    position: [0, 3.6, 17],    lookAt: [0, 5.2, 3],    fov: 54, hold: 1.4 },
+          { name: "the-street", position: [-3.0, 3.2, 11],  lookAt: [0.4, 4.4, 1], fov: 50, hold: 1.2 },
+          { name: "the-river",  position: [3.0, 4.0, 4.5],  lookAt: [0.4, 3.4, -5], fov: 48, hold: 1.6 },
+          { name: "the-reveal", position: [1.2, 5.6, 1.5],  lookAt: [0, 12, -22],  fov: 50, hold: 1.8 },
+          { name: "the-feeling",position: [4.2, 4.6, 6.5],  lookAt: [0.4, 7.5, -16], fov: 48, hold: 2.2 },
+        ],
+      };
+
+      const W = 1080, H = 1920;
+      const cam = new OneCam(SHEET, { fps: 30 });
+
+      const canvas = document.getElementById("three-layer");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(W, H, false);
+      renderer.setPixelRatio(1);
+      renderer.setClearColor(0x2b4c6f, 1);
+
+      const scene = new THREE.Scene();
+      const SKY = 0xf2b377;
+      scene.fog = new THREE.Fog(SKY, 18, 95);
+
+      const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 300);
+
+      /* Deterministic placement: the same film every render. */
+      function mulberry32(a) {
+        return function () {
+          a |= 0; a = (a + 0x6d2b79f5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const rand = mulberry32(20261112);
+
+      /* ---- sky dome: a gradient, so the frame is never flat ---- */
+      const skyGeo = new THREE.SphereGeometry(200, 24, 16);
+      const skyMat = new THREE.ShaderMaterial({
+        side: THREE.BackSide, fog: false, depthWrite: false,
+        uniforms: {
+          top: { value: new THREE.Color(0x2b4c6f) },
+          bottom: { value: new THREE.Color(0xf2b377) },
+        },
+        vertexShader: `varying float vY; void main(){ vY = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+        fragmentShader: `uniform vec3 top; uniform vec3 bottom; varying float vY;
+          void main(){ gl_FragColor = vec4(mix(bottom, top, smoothstep(-0.1, 0.55, vY)), 1.0); }`,
+      });
+      scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+      /* ---- light: golden hour, low and warm ---- */
+      scene.add(new THREE.HemisphereLight(0xffd9a0, 0x4a3f35, 1.15));
+      const sun = new THREE.DirectionalLight(0xffd2a1, 2.4);
+      sun.position.set(-14, 16, 10);
+      scene.add(sun);
+
+      const mat = (hex, rough = 0.85) =>
+        new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: 0.02 });
+
+      /* ---- ground ---- */
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat(0xd9c9a8));
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+
+      /* ---- river: a band across the diorama, slightly mirror-ish ---- */
+      const river = new THREE.Mesh(
+        new THREE.PlaneGeometry(400, 11),
+        new THREE.MeshStandardMaterial({ color: 0x3f6378, roughness: 0.18, metalness: 0.55 })
+      );
+      river.rotation.x = -Math.PI / 2;
+      river.position.set(0, 0.02, -6);
+      scene.add(river);
+
+      /* quays */
+      for (const z of [-0.7, -11.3]) {
+        const quay = new THREE.Mesh(new THREE.BoxGeometry(400, 0.7, 1.4), mat(0xc9b896));
+        quay.position.set(0, 0.35, z);
+        scene.add(quay);
+      }
+
+      /* ---- Haussmann blocks: cream bodies, slate roofs ---- */
+      const bodyMat = [mat(0xe8dcc4), mat(0xded0b4), mat(0xe3d7bd)];
+      const roofMat = mat(0x5b5f63, 0.6);
+      function block(x, z, w, d, h) {
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat[(rand() * 3) | 0]);
+        body.position.y = h / 2;
+        g.add(body);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w * 1.06, h * 0.16, d * 1.06), roofMat);
+        roof.position.y = h + h * 0.07;
+        g.add(roof);
+        g.position.set(x, 0, z);
+        scene.add(g);
+        return g;
+      }
+
+      /* The camera corridor is cleared by construction, not by luck:
+         nothing inside the avenue (|x| < 4.6), the river band, or the plaza
+         around the tower. */
+      const TOWER = [0, -22];
+      function corridorClear(x, z) {
+        if (Math.abs(x) < 4.6 && z > -13) return false;          // the avenue
+        if (z > -12.2 && z < 0.2) return false;                   // the river
+        if (Math.hypot(x - TOWER[0], z - TOWER[1]) < 9) return false; // the plaza
+        return true;
+      }
+
+      for (let row = 0; row < 7; row++) {
+        const z = 10 - row * 5.5;
+        for (let i = 0; i < 16; i++) {
+          const x = -40 + i * 5.2 + (rand() - 0.5) * 1.2;
+          if (!corridorClear(x, z)) continue;
+          block(x, z, 3.4 + rand() * 1.4, 3.2 + rand() * 1.2, 2.6 + rand() * 3.6);
+        }
+      }
+      /* a denser far bank so the reveal has a city behind the tower */
+      for (let i = 0; i < 26; i++) {
+        const x = -54 + i * 4.3 + rand() * 1.5;
+        const z = -26 - rand() * 16;
+        if (!corridorClear(x, z)) continue;
+        block(x, z, 3 + rand() * 2, 3 + rand() * 2, 3 + rand() * 6);
+      }
+
+      /* ---- the tower: four tapered legs, two platforms, a spire ---- */
+      /* Pass 3: the first tower was four sticks under a fat cone — it read as
+         an obelisk. The silhouette is what identifies it, so: a wide splayed
+         base, a lattice that narrows in two stages, and a small spire. */
+      const towerMat = mat(0x8a6a4f, 0.7);
+      const tower = new THREE.Group();
+      tower.position.set(0, 0, -22);
+      const corners = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+      // lower legs: wide base, converging at the first platform
+      for (const [sx, sz] of corners) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.46, 9.6, 6), towerMat);
+        leg.position.set(sx * 1.95, 4.8, sz * 1.95);
+        leg.rotation.z = -sx * 0.19;
+        leg.rotation.x = sz * 0.19;
+        tower.add(leg);
+      }
+      // the arch, read as a band between the legs
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.3, 0.45), towerMat);
+      arch.position.y = 3.4; tower.add(arch);
+      const archZ = arch.clone(); archZ.rotation.y = Math.PI / 2; tower.add(archZ);
+
+      const p1 = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.42, 5.0), towerMat);
+      p1.position.y = 9.4; tower.add(p1);
+
+      // upper lattice: narrows again
+      for (const [sx, sz] of corners) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.22, 7.6, 6), towerMat);
+        leg.position.set(sx * 0.62, 13.3, sz * 0.62);
+        leg.rotation.z = -sx * 0.055;
+        leg.rotation.x = sz * 0.055;
+        tower.add(leg);
+      }
+      const p2 = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.34, 2.3), towerMat);
+      p2.position.y = 17.1; tower.add(p2);
+
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.52, 2.2, 6), towerMat);
+      cap.position.y = 18.3; tower.add(cap);
+      const spire = new THREE.Mesh(new THREE.ConeGeometry(0.14, 3.6, 6), towerMat);
+      spire.position.y = 21.2; tower.add(spire);
+      scene.add(tower);
+
+      /* ---- trees along the quay ---- */
+      const trunkMat = mat(0x6b5440), leafMat = mat(0x5d7a4a);
+      for (let i = 0; i < 22; i++) {
+        const x = -30 + i * 2.9 + (rand() - 0.5);
+        /* Keep the camera corridor clear of trees too: pass 2 put a tree
+           across the whole river beat. */
+        if (Math.abs(x) < 4.6) continue;
+        for (const z of [-0.2, -11.8]) {
+          const t = new THREE.Group();
+          const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.1, 5), trunkMat);
+          tr.position.y = 0.9; t.add(tr);
+          const lf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), leafMat);
+          lf.position.y = 1.9; lf.rotation.y = rand() * 3; t.add(lf);
+          t.position.set(x, 0.35, z);
+          scene.add(t);
+        }
+      }
+
+      /* ---- Claude: a small figure, read by silhouette not by face ---- */
+      const claude = new THREE.Group();
+      const skin = mat(0xd97757, 0.6);
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.42, 4, 10), skin);
+      body.position.y = 0.55; claude.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 14, 12), skin);
+      head.position.y = 1.08; claude.add(head);
+      const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.3, 3, 7), skin);
+      armL.position.set(-0.27, 0.62, 0); claude.add(armL);
+      const armR = armL.clone(); armR.position.x = 0.27; claude.add(armR);
+      /* On the quay, so he is in frame for the river and the reveal — the
+         emotional arc has to be present at the payoff, not only at the start. */
+      claude.position.set(1.4, 0.7, -0.9);
+      claude.scale.setScalar(1.5);
+      scene.add(claude);
+
+      /* ---- per-frame: everything derived from HyperFrames time ---- */
+      function renderAt(time) {
+        const frame = time * SHEET.fps;
+        cam.apply(camera, frame);
+
+        const b = cam.beatAt(frame) ?? { index: 0, phase: "hold", local: 0 };
+
+        /* The character reacts to the camera arriving (M3), not to a clock. */
+        const settle = b.phase === "hold" ? b.local : 0;
+        claude.position.y = Math.sin(time * 2.1) * 0.025;
+        claude.rotation.y = Math.sin(time * 0.33) * 0.5 + settle * 0.25;
+        /* a small delighted bounce once the camera settles on a beat */
+        const bounce = Math.max(0, Math.sin(settle * Math.PI)) * 0.07;
+        claude.position.y += bounce;
+        armL.rotation.z = 0.25 + bounce * 3.0;
+        armR.rotation.z = -0.25 - bounce * 3.0;
+
+        /* river shimmer — deterministic, time-derived */
+        river.material.roughness = 0.16 + Math.sin(time * 0.9) * 0.05;
+
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener("hf-seek", (e) => renderAt(e.detail.time));
+      renderAt(window.__hfThreeTime || 0);
+      window.__renderAt = renderAt; // for diagnostics
+
+      /* DOM overlay timeline — 3 words on screen, well inside the T1 budget */
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#scrim", { opacity: 0 }, { opacity: 1, duration: 1.1, ease: "power2.out" }, 11.0);
+      tl.fromTo("#title",
+        { opacity: 0, y: 26, filter: "blur(10px)" },
+        { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out" }, 11.4);
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

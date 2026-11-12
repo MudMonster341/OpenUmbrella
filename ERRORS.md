@@ -75,3 +75,28 @@ explicitly: `export PATH="$PATH:/c/Users/Mustafa/AppData/Local/Microsoft/WinGet/
 processes. Confirm by checking the user PATH in the registry
 (`[Environment]::GetEnvironmentVariable("Path","User")`) — if the entry is there, it is a stale
 environment, not a failed install.
+
+---
+
+## ERR-0004 — HyperFrames render fails on missing FFprobe but exits 0 (2026-11-12)
+
+**Symptom:** `npm run render` in a HyperFrames project produces no MP4 and prints
+`FFprobe is required to probe media assets. It ships with FFmpeg but was not found on PATH.` —
+but the process **exits with code 0**, so a background job or CI step reports success. The only
+evidence of failure is the absent output file.
+
+**Context:** Windows 11, `films/paris-proto`, hyperframes 0.9.39, FFmpeg installed via winget but
+not visible to the shell (see [ERR-0003](#err-0003)). `npm run check` and `snapshot` had both
+succeeded moments earlier, because neither needs FFprobe.
+
+**Root cause:** Two things compounding. The stale-PATH problem of ERR-0003, plus a tool that
+treats a missing hard dependency as a soft failure. Earlier commands passing made it look like the
+environment was fine — the dependency is only reached at encode time.
+
+**Fix:** Prepend the FFmpeg bin directory to PATH for the render command, or restart the terminal
+so the user PATH applies. Durably: a terminal restart fixes ERR-0003 and this with it.
+
+**Recognise it next time:** A build or render step that "succeeds" instantly and produces no
+artifact. **Check for the output file, never the exit code** — our own `filmcheck` takes a path
+and fails loudly if it is absent, which is the behaviour to copy. Note that `check` and `snapshot`
+passing does not prove the render chain is healthy; they exercise different dependencies.

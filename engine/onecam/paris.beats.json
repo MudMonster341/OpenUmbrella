@@ -3,51 +3,51 @@
   "fps": 30,
   "pace": 1.0,
   "motionFloor": 0.06,
-  "notes": "Draft beat sheet for Gate 1. Positions are placeholders in world units until the Paris diorama blockout exists; the timing they produce is already real, which is the point of running the plan before anything is modelled.",
+  "notes": "Corrected 2026-11-12 after four render passes against the real geometry in films/paris-proto. Camera stays inside the cleared corridor: the avenue (|x| < 4.6), the river band (-12.2 < z < 0.2), and clear of a 9-unit plaza around the tower at (0, -22). lookAt sits above camera height throughout, because a 9:16 frame aimed level fills its lower third with empty ground. Still only 14.94s against the 30-40s target in GOAL.md - needs more beats, not longer holds.",
   "beats": [
     {
       "name": "arrival",
-      "position": [0, 2.2, 14],
-      "lookAt": [0, 1.6, 0],
-      "fov": 55,
+      "position": [0, 3.6, 17],
+      "lookAt": [0, 5.2, 3],
+      "fov": 54,
       "hold": 1.4,
-      "content": "Claude steps into frame, back to camera, looking up. Establishes scale and the city's warm morning light.",
+      "content": "Claude small on the quay, back to camera, the city laid out ahead. Establishes scale and the warm low light.",
       "narration": "I have read about this place ten thousand times."
     },
     {
       "name": "the-street",
-      "position": [-5.5, 1.8, 8.5],
-      "lookAt": [-2, 1.4, 2],
+      "position": [-3.0, 3.2, 11],
+      "lookAt": [0.4, 4.4, 1],
       "fov": 50,
       "hold": 1.2,
-      "content": "Camera drifts along a cafe terrace. Claude turns, delighted, as the street reveals itself.",
+      "content": "Camera drifts down the avenue. Claude turns as the street opens out.",
       "narration": "Nobody told me it would smell like bread."
     },
     {
       "name": "the-river",
-      "position": [4, 3.4, 2],
-      "lookAt": [1, 1.2, -6],
-      "fov": 46,
+      "position": [3.0, 4.0, 4.5],
+      "lookAt": [0.4, 3.4, -5],
+      "fov": 48,
       "hold": 1.6,
-      "content": "The move lifts over the river. Light on water carries the frame while Claude leans on the railing.",
+      "content": "The move crosses toward the water. Light on the river carries the frame.",
       "narration": "Or that the light would move like that."
     },
     {
       "name": "the-reveal",
-      "position": [2, 6.5, -9],
-      "lookAt": [0, 4, -20],
-      "fov": 42,
+      "position": [1.2, 5.6, 1.5],
+      "lookAt": [0, 12, -22],
+      "fov": 50,
       "hold": 1.8,
-      "content": "Camera rises; the tower enters frame late and from below. The payoff shot.",
+      "content": "Camera lifts and the gaze climbs; the tower enters frame from below, across the river so the silhouette reads.",
       "narration": "I knew exactly how tall it was."
     },
     {
       "name": "the-feeling",
-      "position": [-1.5, 3.0, -14],
-      "lookAt": [0, 2.4, -18],
-      "fov": 38,
+      "position": [4.2, 4.6, 6.5],
+      "lookAt": [0.4, 7.5, -16],
+      "fov": 48,
       "hold": 2.2,
-      "content": "Push in on Claude, small against the city, entirely happy. Music resolves on the final frame.",
+      "content": "Wide: tower in the upper frame, Claude small on the quay below. Music resolves on the final frame.",
       "narration": "Knowing is not the same as standing here."
     }
   ]

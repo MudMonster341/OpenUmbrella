@@ -18,3 +18,7 @@ projects/
 __pycache__/
 *.pyc
 node_modules/
+
+# HyperFrames working artifacts (snapshots, check reports, renders, state)
+films/*/.hyperframes/
+films/*/node_modules/
