@@ -63,3 +63,41 @@ measurable and the critic had to be separated from the builder.
 **Next:** Get approval on the VoiceStudio install method and the motion-design skill layer, then
 build the automated checks (dead-frame scan, scene-change count, loudness) that Gates 3 and 4
 depend on. Without those the quality bar is just an opinion.
+
+---
+
+## 2026-11-12 — Built filmcheck and onecam in house; measured the demo problem
+
+**Did:**
+- Built `tools/filmcheck` — a stdlib + FFmpeg quality gate implementing the GOAL.md standards.
+  Run on the three demo renders it turned "feels choppy" into a defect: `focusflow-pitch.mp4` is
+  **motionless for 79% of its runtime** (11 intervals, 17.9s of 22.5s), audio present but empty
+  at -70 LUFS. The other two measure the same way.
+- Built `engine/onecam` — the continuous-camera rig, taking onetake's technique and rejecting its
+  non-commercial license. `verify.mjs` proves all four guarantees across 448 frames of the draft
+  Paris beat sheet.
+- Declined three third-party repos and recorded why: onetake (rebuilt), lemo-opuscar (reference
+  only), gbro-collage-broll (rejected — paid Gemini, breaks the zero-key rule).
+- Added the GitHub remote `MudMonster341/OpenUmbrella` and pushed.
+
+**Why:** The diagnosis that the demos were "prop dumps with no judge" needed to become a number
+before anything else was worth doing — 79% motionless is not a matter of taste, and it told us the
+failure is stop-motion pacing, not jitter. Building rather than adopting followed from the license
+audit: the two capabilities we needed most were a day's work and are better for being ours, because
+they encode our bar rather than someone else's.
+
+The design of onecam is the part worth remembering: it makes the failures *unrepresentable* instead
+of detectable. A cut cannot be expressed in the API, and a permanent camera drift means a dead-frame
+interval cannot form from a static camera. Checking after the fact is strictly weaker than making
+the defect impossible to author.
+
+**Decisions:** [ADR 0007](decisions/0007-build-continuous-camera-in-house.md),
+[ADR 0008](decisions/0008-learn-styles-then-author-our-own.md),
+[ADR 0009](decisions/0009-in-house-before-adoption.md)
+
+**Failures:** none new. filmcheck was written to survive [ERR-0003](ERRORS.md) — it locates FFmpeg
+itself when PATH is stale.
+
+**Next:** Close the loop — drive onecam through a real Three.js scene, render, and run filmcheck on
+the result. Until that passes, the rig is verified mathematics, not film. The Paris beat sheet also
+plans to 14.9s against a 30-40s target and needs more beats.

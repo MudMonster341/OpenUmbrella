@@ -1,6 +1,6 @@
 # marketing_video_flow — context
 
-**Last updated:** 2026-11-12 · **Repo:** local only, no remote yet · **Local:** `C:\Users\Mustafa\Desktop\Mustafa\Projects\marketing_video_flow`
+**Last updated:** 2026-11-12 · **Repo:** https://github.com/MudMonster341/OpenUmbrella · **Local:** `C:\Users\Mustafa\Desktop\Mustafa\Projects\marketing_video_flow`
 
 ## What this is
 
@@ -33,13 +33,25 @@ starts from the first film's standards instead of from zero.
   (1920x1080, h264+aac, 22–25s each, $0).
 - No API keys configured, by design.
 
-**What is not done:** no original film yet. The demos are stock prop dumps and their motion quality
-is below the bar ([GOAL.md](GOAL.md)). Narration engine is being upgraded from Piper to VoiceStudio
-([ADR 0004](decisions/0004-voicestudio-as-narration-engine.md)) — **not yet installed**. No motion-design
-skill layer installed yet; candidates are rated in [docs/REPO_REGISTRY.md](docs/REPO_REGISTRY.md)
-and all await approval.
+**Phase 2 — in-house tooling, partly built (2026-11-12).**
 
-**Next:** the first real deliverable — see [GOAL.md](GOAL.md) and [PLANS.md](PLANS.md).
+- **`tools/filmcheck`** works: measures any MP4 against the GOAL.md standards with FFmpeg and the
+  standard library. First run quantified the demo problem — `focusflow-pitch.mp4` is **motionless
+  for 79% of its runtime** (11 intervals, 17.9s of 22.5s), with an empty audio track at −70 LUFS.
+- **`engine/onecam`** works at design time: the continuous-camera rig
+  ([ADR 0007](decisions/0007-build-continuous-camera-in-house.md)). `verify.mjs` proves all four
+  guarantees across every frame of the draft Paris beat sheet — no still frames, no cuts, three
+  distinct easing curves, continuous gaze.
+
+**What is not done:** no original film yet, and **onecam has never driven a real render** — its
+guarantees are verified in the maths, not in an MP4. The draft Paris beat sheet plans to 14.9s
+against a 30–40s target, so it needs more beats before Gate 1. VoiceStudio is decided
+([ADR 0004](decisions/0004-voicestudio-as-narration-engine.md)) but **not installed** — the install
+method is awaiting approval. No third-party motion-design skills installed; all rated and pending
+in [docs/REPO_REGISTRY.md](docs/REPO_REGISTRY.md).
+
+**Next:** drive onecam through a real Three.js render and close the loop with filmcheck on the
+output — see [PLANS.md](PLANS.md).
 
 ## How to run it
 
@@ -68,6 +80,8 @@ without it narration silently has no provider.
 | Path | What it is |
 |---|---|
 | `CONTEXT.md`, `GOAL.md`, `PLANS.md`, `MEMORY.md`, `ERRORS.md`, `decisions/` | Our written memory — the system |
+| `engine/onecam/` | **Ours.** Continuous-camera rig, beat-sheet schema, design-time verifier |
+| `tools/filmcheck/` | **Ours.** Quality gate — measures a finished MP4 against GOAL.md |
 | `docs/` | Walkthrough, motion-quality research, the third-party repo registry |
 | `scripts/` | `checkpoint.ps1` / `checkpoint.sh` — commit and push the memory files |
 | `OpenMontage/` | Vendored clone of the production pipeline. **Gitignored. Never edited.** |

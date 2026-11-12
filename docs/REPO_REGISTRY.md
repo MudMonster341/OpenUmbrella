@@ -55,7 +55,10 @@ Technically outstanding and perfectly legitimate for personal or learning use �
 are ever commercial, the valuable half of this repo cannot be used. That restriction is not
 mentioned anywhere it gets shared.
 
-**Verdict: pending approval — personal/non-commercial use only.**
+**Verdict (2026-11-12): REFERENCE ONLY — [ADR 0008](../decisions/0008-learn-styles-then-author-our-own.md).**
+Study it to learn what code-driven film styles can do, then author our own style vocabulary. Prompt
+text is never copied or paraphrased into our files. Not cloned into the project; if it ever is, it
+goes to `vendor/`, gitignored and never imported.
 
 ### 🥉 [JohnHeibel/ClaudeAnimationBase](https://github.com/JohnHeibel/ClaudeAnimationBase) — **6/10**
 
@@ -90,8 +93,11 @@ source license** and forbids commercial use as granted.
 **Important:** the *technique* — one continuous camera, beats growing out of each other — is an
 idea, not licensed IP. We can build that ourselves regardless.
 
-**Verdict: pending approval, non-commercial only — or $79 if these films go commercial. Adopt the
-technique independently either way.**
+**Verdict (2026-11-12): DECLINED as a dependency — technique rebuilt in house.**
+[ADR 0007](../decisions/0007-build-continuous-camera-in-house.md). `engine/onecam` implements the
+continuous camera from scratch and improves on it: rather than checking continuity after the fact,
+a cut is not expressible in the API, and a permanent camera drift makes dead frames impossible. No
+license constraint on any output.
 
 ### 5. [pyang5166/gbro-collage-broll](https://github.com/pyang5166/gbro-collage-broll) — **3/10** ❌
 
@@ -107,7 +113,9 @@ flow. Default output 9:16, 5s, 720×1280, 24fps, silent.
 commits old. The paper-collage look is also a different aesthetic from the stylized 3D in
 [ADR 0006](../decisions/0006-stylized-3d-over-photoreal.md).
 
-**Verdict: not recommended.** Awaiting the user's call; recorded here so it is not re-proposed.
+**Verdict (2026-11-12): REJECTED.** Breaks the zero-key rule and is not needed. If paper-collage
+B-roll is ever wanted, we build it ([ADR 0009](../decisions/0009-in-house-before-adoption.md)).
+Recorded here so it is not re-proposed.
 
 ---
 
@@ -156,7 +164,17 @@ Also noted, not yet rated in detail: `feitangyuan/onetake` (above), `Tejashmakwa
 
 ---
 
-## 5. Catalogs used for discovery — reference only, not installed
+## 5. Built in house instead
+
+Per [ADR 0009](../decisions/0009-in-house-before-adoption.md) — techniques taken freely,
+implementations written from scratch.
+
+| Ours | Replaces | Why ours |
+|---|---|---|
+| [`tools/filmcheck`](../tools/filmcheck/) | motion-video-kit's quality bar, onetake's `verify_promo.py` | Encodes *our* standards from GOAL.md; works on any MP4; FFmpeg + stdlib only; no license constraint |
+| [`engine/onecam`](../engine/onecam/) | `feitangyuan/onetake` | Cuts are unrepresentable rather than merely detected; dead frames impossible by construction; easing derived from distance |
+
+## 6. Catalogs used for discovery — reference only, not installed
 
 | Source | Note |
 |---|---|

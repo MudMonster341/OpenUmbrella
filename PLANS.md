@@ -12,12 +12,26 @@
 
 | # | Step | Status |
 |---|---|---|
-| 2.1 | Install VoiceStudio as the narration engine, verify a local render, compare against Piper on the same line | **Awaiting approval of the install method** |
+| 2.4 | **`tools/filmcheck`** — dead-frame scan, cut detection, loudness, silence, format, duration | ✅ **done 2026-11-12** |
+| 2.5 | **`engine/onecam`** — continuous-camera rig + beat-sheet schema + design-time verifier | ✅ **done 2026-11-12** (design time only) |
+| 2.6 | Drive onecam through a real Three.js scene, render to MP4, run filmcheck on the output | **Next — the loop is not closed until this passes** |
+| 2.1 | Install VoiceStudio as the narration engine, verify locally, compare against Piper on the same line | **Awaiting approval of the install method** |
+| 2.7 | Extend the Paris beat sheet: it plans to 14.9s against a 30–40s target. More beats, not longer holds | Not started |
+| 2.3 | Build the house style token set (palette, type scale, motion curves) | Not started |
 | 2.2 | Decide the motion-design skill layer from the rated candidates in [docs/REPO_REGISTRY.md](docs/REPO_REGISTRY.md) | Awaiting approval |
-| 2.3 | Build the house style token set (palette, type scale, motion curves) as `styles/custom/` | Not started |
-| 2.4 | Write the automated checks the loop needs: frame-diff dead-frame scan, scene-change count, loudness measurement | Not started |
 
-Step 2.4 matters more than it looks: without it, Gates 3 and 4 in [GOAL.md](GOAL.md) are opinion.
+Step 2.6 is the one that matters. Until a real render passes filmcheck, the rig's guarantees are
+mathematics, not film — and the bar is only as real as the first thing it is enforced on.
+
+### The loop, as it now runs
+
+```
+beat sheet  -> node engine/onecam/verify.mjs    design-time guarantees, before anything renders
+            -> render
+            -> python tools/filmcheck/filmcheck.py --allow-cuts 0 --expect-vertical
+            -> fix the numbered failures (with timecodes)
+            -> re-render        max 2 rounds per gate, then go back up a gate
+```
 
 ---
 

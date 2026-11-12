@@ -1,0 +1,54 @@
+{
+  "title": "Claude in Paris",
+  "fps": 30,
+  "pace": 1.0,
+  "motionFloor": 0.06,
+  "notes": "Draft beat sheet for Gate 1. Positions are placeholders in world units until the Paris diorama blockout exists; the timing they produce is already real, which is the point of running the plan before anything is modelled.",
+  "beats": [
+    {
+      "name": "arrival",
+      "position": [0, 2.2, 14],
+      "lookAt": [0, 1.6, 0],
+      "fov": 55,
+      "hold": 1.4,
+      "content": "Claude steps into frame, back to camera, looking up. Establishes scale and the city's warm morning light.",
+      "narration": "I have read about this place ten thousand times."
+    },
+    {
+      "name": "the-street",
+      "position": [-5.5, 1.8, 8.5],
+      "lookAt": [-2, 1.4, 2],
+      "fov": 50,
+      "hold": 1.2,
+      "content": "Camera drifts along a cafe terrace. Claude turns, delighted, as the street reveals itself.",
+      "narration": "Nobody told me it would smell like bread."
+    },
+    {
+      "name": "the-river",
+      "position": [4, 3.4, 2],
+      "lookAt": [1, 1.2, -6],
+      "fov": 46,
+      "hold": 1.6,
+      "content": "The move lifts over the river. Light on water carries the frame while Claude leans on the railing.",
+      "narration": "Or that the light would move like that."
+    },
+    {
+      "name": "the-reveal",
+      "position": [2, 6.5, -9],
+      "lookAt": [0, 4, -20],
+      "fov": 42,
+      "hold": 1.8,
+      "content": "Camera rises; the tower enters frame late and from below. The payoff shot.",
+      "narration": "I knew exactly how tall it was."
+    },
+    {
+      "name": "the-feeling",
+      "position": [-1.5, 3.0, -14],
+      "lookAt": [0, 2.4, -18],
+      "fov": 38,
+      "hold": 2.2,
+      "content": "Push in on Claude, small against the city, entirely happy. Music resolves on the final frame.",
+      "narration": "Knowing is not the same as standing here."
+    }
+  ]
+}

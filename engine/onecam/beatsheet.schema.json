@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://marketing-video-flow/engine/onecam/beatsheet.schema.json",
+  "title": "onecam beat sheet",
+  "description": "A continuous-camera film as data. The camera path is derived from these beats; it is never hand-keyed. Gate 1 approves this document.",
+  "type": "object",
+  "required": ["beats"],
+  "properties": {
+    "title": { "type": "string" },
+    "fps": { "type": "number", "default": 30, "minimum": 24 },
+    "pace": {
+      "type": "number",
+      "default": 1.0,
+      "description": "Scales every distance-derived travel time. Below 1 is faster, above 1 is slower."
+    },
+    "motionFloor": {
+      "type": "number",
+      "default": 0.06,
+      "description": "Amplitude of the residual camera drift that guarantees standard M1. Scale to the scene's world units."
+    },
+    "notes": { "type": "string" },
+    "beats": {
+      "type": "array",
+      "minItems": 2,
+      "description": "In order. The camera travels to each in turn and never cuts.",
+      "items": {
+        "type": "object",
+        "required": ["position"],
+        "properties": {
+          "name": { "type": "string" },
+          "position": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Camera position [x, y, z] in world units."
+          },
+          "lookAt": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3,
+            "default": [0, 0, 0]
+          },
+          "fov": { "type": "number", "default": 50 },
+          "travel": {
+            "type": "number",
+            "description": "Seconds to reach this beat. Omit to derive it from distance — recommended, because pinning it is how inconsistent speed creeps in."
+          },
+          "hold": {
+            "type": "number",
+            "default": 1.2,
+            "description": "Seconds held on this beat while its content plays. The camera still drifts."
+          },
+          "curve": {
+            "type": "string",
+            "enum": ["inOutCubic", "inOutQuint", "outCubic", "outQuint", "outExpo", "linear"],
+            "description": "Override the distance-derived curve. Use sparingly; the default exists to stop every move sharing one easing."
+          },
+          "content": {
+            "type": "string",
+            "description": "What happens on screen during this beat. Prose, for the Gate 1 review."
+          },
+          "narration": {
+            "type": "string",
+            "description": "The line spoken over this beat. Counts toward the on-screen word budget when captioned."
+          }
+        }
+      }
+    }
+  }
+}
