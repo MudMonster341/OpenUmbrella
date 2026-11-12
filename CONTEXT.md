@@ -43,9 +43,19 @@ starts from the first film's standards instead of from zero.
   guarantees across every frame of the draft Paris beat sheet — no still frames, no cuts, three
   distinct easing curves, continuous gaze.
 
-**What is not done:** no original film yet, and **onecam has never driven a real render** — its
-guarantees are verified in the maths, not in an MP4. The draft Paris beat sheet plans to 14.9s
-against a 30–40s target, so it needs more beats before Gate 1. VoiceStudio is decided
+**Phase 2 — the loop is closed (2026-11-13).**
+
+`films/paris-proto` is the first original render: 1080×1920, 14.9s, stylized low-poly Paris in
+Three.js, driven by onecam through HyperFrames. **One continuous camera move, zero cuts, 0%
+motionless**, and it passes every filmcheck blocker measurable without audio. Renders in ~41s.
+
+Getting there took four framing passes and six measured M1 passes — the render found defects every
+design-time check had missed, which is the whole point of having both. The log is in
+[films/paris-proto/README.md](films/paris-proto/README.md).
+
+**What is not done:** the prototype is **14.9s against a 30–40s target** and has **no audio at
+all** — so it does not pass the full GOAL.md bar and must not be described as if it does. It needs
+more beats before Gate 1. VoiceStudio is decided
 ([ADR 0004](decisions/0004-voicestudio-as-narration-engine.md)) but **not installed** — the install
 method is awaiting approval. No third-party motion-design skills installed; all rated and pending
 in [docs/REPO_REGISTRY.md](docs/REPO_REGISTRY.md).

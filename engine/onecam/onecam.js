@@ -91,6 +91,9 @@ function vecDistance(a, b) {
 /* -------------------------------------------------------------- the rig  */
 
 export class OneCam {
+  /** Seconds before a beat's arrival that the hold drift begins ramping in. */
+  static DRIFT_LEAD = 0.45;
+
   /**
    * @param {object} sheet  beat sheet — see beatsheet.schema.json
    * @param {object} opts   { fps, pace, motionFloor }
@@ -98,10 +101,33 @@ export class OneCam {
   constructor(sheet, opts = {}) {
     this.fps = opts.fps ?? sheet.fps ?? 30;
     this.pace = opts.pace ?? sheet.pace ?? 1.0;
-    // Residual camera drift during holds, in world units of amplitude.
-    // Small enough to be invisible as movement, large enough that the
-    // rendered frame always changes. This is the M1 guarantee.
+    // Residual oscillation, in world units of amplitude. On its own this is
+    // NOT enough for M1 — see holdDrift.
     this.motionFloor = opts.motionFloor ?? sheet.motionFloor ?? 0.06;
+    // Hold drift, in world units per second, along the view direction.
+    //
+    // Calibrated against a real render, not guessed. The first version relied
+    // only on the oscillation above, which moves the camera ~3.5e-4 world
+    // units per frame at 30fps — mathematically non-zero, and SUB-PIXEL once
+    // projected. filmcheck measured the render as 48% motionless while
+    // verify.mjs reported every frame moving. The guarantee had been written
+    // in the wrong units: "the camera moves" is not "the image changes".
+    //
+    // A slow continuous push along the view direction fixes it properly, and
+    // is better film-making than a vibration: a camera that keeps easing
+    // forward reads as alive, one that oscillates in place reads as noise.
+    //
+    // 0.22 u/s was still not enough, and the second measurement explained why:
+    // flat-shaded low-poly surfaces and a smooth sky gradient mean a ~1px
+    // shift changes almost no pixels — only edges differ, and edges are a
+    // small fraction of the frame. The motion has to be visible, not merely
+    // non-zero. 1.2 u/s is ~3-4px per frame at this scale: about 2.6 units of
+    // push across a 2.2s hold, which reads as a deliberate slow push-in.
+    //
+    // The alternative — adding animated grain so every frame differs — would
+    // make filmcheck pass without the film moving. That is gaming our own
+    // metric, so it is not done.
+    this.holdDrift = opts.holdDrift ?? sheet.holdDrift ?? 1.2;
     this.beats = sheet.beats ?? [];
     if (this.beats.length < 2) {
       throw new Error("onecam: a continuous move needs at least 2 beats");
@@ -131,11 +157,60 @@ export class OneCam {
         holdEnd: t + travel + hold,
         curve: beat.curve ? Ease[beat.curve] ?? curveForDistance(distance) : curveForDistance(distance),
       };
+      /* Where the camera actually ENDS this beat, after its hold drift.
+         The next travel must start from here, not from the beat's authored
+         position, or the drift is undone in one frame — which is a cut.
+         (Measured: a 2.148-unit jump, caught by verify.mjs's M4.) */
+      /* The drift leads the arrival: easing curves reach the beat at zero
+         velocity, so handing off from travel to drift at a single instant
+         leaves a motionless shoulder either side of it. Measured twice, at
+         0.40s and 0.50s — just over the 0.4s limit. Overlapping the two
+         velocity sources removes the shoulder. */
+      seg.lead = Math.min(OneCam.DRIFT_LEAD, travel);
+      const dir = this._driftDir(beat, i);
+      const push = this.holdDrift * (hold + seg.lead);
+      seg.exit = [
+        beat.position[0] + dir[0] * push,
+        beat.position[1] + dir[1] * push,
+        beat.position[2] + dir[2] * push,
+      ];
+
       t = seg.holdEnd;
       return seg;
     });
     this.duration = t;
     this.totalFrames = Math.round(this.duration * this.fps);
+  }
+
+  /**
+   * Direction of the hold drift for a beat: mostly a push along the view
+   * axis, partly a lateral slide.
+   *
+   * A pure dolly toward a distant subject barely changes the image — things
+   * grow very slowly — which is why a 1.2 u/s push still left a 0.53s
+   * motionless interval where a travel's ease-out met a hold. The lateral
+   * component creates parallax, where near and far move at different rates,
+   * and that is what actually reads as a living frame. The side alternates
+   * per beat so the film does not crab steadily in one direction.
+   */
+  _driftDir(beat, index) {
+    const look = beat.lookAt ?? [0, 0, 0];
+    let vx = look[0] - beat.position[0];
+    let vy = look[1] - beat.position[1];
+    let vz = look[2] - beat.position[2];
+    const vlen = Math.hypot(vx, vy, vz) || 1;
+    vx /= vlen; vy /= vlen; vz /= vlen;
+
+    // right = view x worldUp, with up = (0,1,0), giving a horizontal slide
+    const rx = vz, rz = -vx;
+    const rlen = Math.hypot(rx, rz) || 1;
+    const side = index % 2 === 0 ? 1 : -1;
+
+    const fx = 0.6 * vx + 0.45 * side * (rx / rlen);
+    const fy = 0.6 * vy;
+    const fz = 0.6 * vz + 0.45 * side * (rz / rlen);
+    const flen = Math.hypot(fx, fy, fz) || 1;
+    return [fx / flen, fy / flen, fz / flen];
   }
 
   /** Seconds for a frame index. */
@@ -196,8 +271,10 @@ export class OneCam {
       const e = seg.curve(Math.min(1, Math.max(0, raw)));
       // Spline through neighbouring beats so the path curves through each
       // waypoint instead of making straight-line dashes between them.
-      const p0 = (this.beats[i - 2] ?? this.beats[i - 1]).position;
-      const p1 = this.beats[i - 1].position;
+      /* p1 is the previous beat's EXIT, so the move continues from where the
+         hold drift left the camera. */
+      const p0 = (this.segments[i - 2] ?? this.segments[i - 1]).exit;
+      const p1 = this.segments[i - 1].exit;
       const p2 = seg.beat.position;
       const p3 = (this.beats[i + 1] ?? seg.beat).position;
       base = [0, 1, 2].map((axis) =>
@@ -205,9 +282,18 @@ export class OneCam {
       );
     }
 
-    // The motion floor: a slow, non-repeating drift applied at all times.
-    // Three incommensurable frequencies so the pattern never loops inside a
-    // short film and the frame is never byte-identical to the previous one.
+    // Hold drift: while sitting on a beat, keep pushing slowly along the view
+    // direction. This is what actually satisfies M1 in a rendered frame.
+    const driftFrom = seg.travelEnd - (seg.lead ?? 0);
+    if (t >= driftFrom) {
+      const held = t - driftFrom;
+      const dir = this._driftDir(seg.beat, seg.index);
+      const push = this.holdDrift * held;
+      base = [base[0] + dir[0] * push, base[1] + dir[1] * push, base[2] + dir[2] * push];
+    }
+
+    // Oscillation on three incommensurable frequencies, so the drift never
+    // settles into a loop. Texture on top of the push, not a substitute.
     const d = this.motionFloor;
     return [
       base[0] + Math.sin(t * 0.37) * d,

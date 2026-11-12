@@ -57,6 +57,31 @@ a scrim now fades in **with** the title rather than darkening the whole film.
 
 ---
 
+## The M1 saga — the most useful thing that happened
+
+The first render passed every design-time guarantee and **failed filmcheck at 48% motionless.**
+Five measured passes to get it to zero. Each one was wrong in a different, instructive way:
+
+| Measured | Cause |
+|---|---|
+| **48%** | `verify.mjs` asserted "the camera moves"; filmcheck measures "the image changes". The oscillation moved the camera **3.46e-4 world units per frame — sub-pixel once projected.** The guarantee had been written in the wrong units |
+| **51%** | Added a 0.22 u/s hold drift. Still not enough: flat-shaded low-poly surfaces and a smooth sky gradient mean a ~1px shift changes almost no pixels, because only edges differ and edges are a small fraction of the frame |
+| **M4 broke** | Raised the drift to 1.2 u/s — and the next travel started from the beat's *authored* position, undoing the drift in one frame. A 2.148-unit jump: a cut. Travels now start from the previous beat's **exit** position |
+| **4%** | One interval left, where a travel's ease-out met a hold. A pure dolly toward a distant subject barely changes the image, so the drift gained a lateral component for parallax |
+| **6%** | Parallax alone did not close it: easing curves arrive at **zero velocity**, so handing off from travel to drift at a single instant leaves a motionless shoulder on both sides |
+| **0%** ✅ | The drift now **leads the arrival** by 0.45s, overlapping the two velocity sources instead of handing off at a point |
+
+The lesson worth keeping: **a guarantee proved in the maths is not a guarantee in the render.**
+`verify.mjs` now measures motionless *intervals* against the same 0.4s limit filmcheck uses, in
+the same units, instead of counting frames against an arbitrary epsilon. Asserting something
+subtly different from what the real gate measures is exactly how the first version passed while
+the film was dead on screen.
+
+One thing deliberately **not** done: adding animated grain so every frame differs. It would have
+passed filmcheck immediately, without the film moving at all. That is gaming our own metric.
+
+---
+
 ## Known defects — not fixed in this prototype
 
 | | Defect | Fix |

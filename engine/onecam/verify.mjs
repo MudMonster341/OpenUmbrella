@@ -27,12 +27,28 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 // A cut in a 3D camera reads as a large positional jump in one frame.
 // At our pace, anything over this in 1/30s is not a move, it is a cut.
 const CUT_THRESHOLD = 2.0;
-// Below this the frame is effectively identical and freezedetect will fire.
-const STILL_EPSILON = 1e-4;
+// Minimum per-frame camera movement that produces a VISIBLE change in a
+// 1080x1920 render. Calibrated against a measured failure, not chosen: a
+// 3.46e-4 step passed this check at 1e-4 and filmcheck still measured the
+// render as 48% motionless, because that displacement is sub-pixel once
+// projected. Anything at or below this threshold is a dead frame on screen
+// however non-zero it is in the maths.
+const STILL_EPSILON = 4e-3;
+
+/* M1 is an INTERVAL standard, not a per-frame one: filmcheck fails a render
+   when the picture is motionless for >= 0.4s. A handful of isolated
+   sub-threshold frames at an ease shoulder is not a dead frame on screen —
+   a 50-frame run is. Measuring runs here makes the design-time check assert
+   exactly what the render-time check measures, in the same units. Asserting
+   something subtly different is how the first version passed while the render
+   failed. */
+const FREEZE_SECONDS = 0.4;
 
 let minStep = Infinity;
 let maxStep = 0;
 let stillFrames = 0;
+let runFrames = 0;
+let worstRun = 0;
 let jumpFrames = [];
 let prev = cam.positionAt(0);
 let prevLook = cam.lookAtAt(0);
@@ -44,7 +60,13 @@ for (let f = 1; f <= plan.frames; f++) {
   const step = dist(prev, p);
   const lookStep = dist(prevLook, l);
 
-  if (step < STILL_EPSILON) stillFrames++;
+  if (step < STILL_EPSILON) {
+    stillFrames++;
+    runFrames++;
+    worstRun = Math.max(worstRun, runFrames);
+  } else {
+    runFrames = 0;
+  }
   if (step > CUT_THRESHOLD) jumpFrames.push({ frame: f, step: step.toFixed(3) });
   minStep = Math.min(minStep, step);
   maxStep = Math.max(maxStep, step);
@@ -59,9 +81,12 @@ const curves = new Set(cam.segments.map((s) => s.curve.name || String(s.curve)))
 const results = [
   {
     id: "M1",
-    name: "Camera never holds still",
-    pass: stillFrames === 0,
-    measured: `${stillFrames} still frame(s); smallest step ${minStep.toExponential(2)} world units`,
+    name: "No motionless interval",
+    pass: worstRun / plan.fps < FREEZE_SECONDS,
+    measured:
+      `longest motionless run ${(worstRun / plan.fps).toFixed(2)}s ` +
+      `(limit ${FREEZE_SECONDS}s); ${stillFrames} sub-threshold frame(s); ` +
+      `smallest step ${minStep.toExponential(2)}`,
   },
   {
     id: "M4",

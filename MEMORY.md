@@ -101,3 +101,40 @@ itself when PATH is stale.
 **Next:** Close the loop — drive onecam through a real Three.js scene, render, and run filmcheck on
 the result. Until that passes, the rig is verified mathematics, not film. The Paris beat sheet also
 plans to 14.9s against a 30-40s target and needs more beats.
+
+---
+
+## 2026-11-13 — Closed the render loop: onecam drives a real film
+
+**Did:**
+- Built `films/paris-proto`: a stylized low-poly Paris in Three.js, vertical 1080x1920, camera
+  driven entirely by onecam through the HyperFrames three adapter. Renders in ~41s.
+- Drove it to **0% motionless, 0 cuts**, passing every filmcheck blocker measurable without audio.
+- Fixed onecam's M1 guarantee, which was wrong in a way no amount of code review would have found.
+- Recorded [ERR-0004](ERRORS.md): HyperFrames renders nothing but exits 0 when FFprobe is off PATH.
+
+**Why:** The first render passed every design-time guarantee and measured **48% motionless**.
+`verify.mjs` asserted "the camera moves"; filmcheck measures "the image changes". The oscillation
+moved the camera 3.46e-4 world units per frame, which is sub-pixel once projected — the guarantee
+had been written in the wrong units. Five more measured passes found: flat-shaded surfaces need
+several pixels of motion before anything differs; raising the drift broke continuity because
+travels started from the authored beat position rather than where the drift had left the camera;
+a pure dolly toward a distant subject barely changes the image, so the drift needed lateral
+parallax; and easing curves arrive at zero velocity, so the drift has to **lead** the arrival
+rather than hand off at a point.
+
+The durable lesson: a guarantee proved in the maths is not a guarantee in the render, and a
+design-time check must assert exactly what the real gate measures, in the same units. `verify.mjs`
+now measures motionless intervals against the same 0.4s limit filmcheck uses.
+
+Also worth remembering what was refused: adding animated grain would have passed filmcheck
+immediately without the film moving at all. Gaming our own metric is worse than failing it.
+
+**Decisions:** none new — this executed [ADR 0007](decisions/0007-build-continuous-camera-in-house.md).
+
+**Failures:** [ERR-0004](ERRORS.md). Also four framing passes before any render: the automated
+check passed while the camera was flying inside buildings and the payoff shot was a flat wall.
+A passing check does not show how it looks.
+
+**Next:** The prototype is 14.9s against a 30-40s target and silent. Extend the beat sheet, then
+install VoiceStudio for narration and captions. Neither is started.
