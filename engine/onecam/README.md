@@ -62,10 +62,29 @@ See [`beatsheet.schema.json`](beatsheet.schema.json) and the working draft
 [`paris.beats.json`](paris.beats.json). Minimum two beats. `travel` and `hold` are optional: omit
 `travel` and it is derived from distance, which is the recommended default.
 
+## Scale awareness
+
+**Everything spatial in this rig scales with the scene**, derived from `scale` — the median
+camera-to-subject distance across the beats, or an explicit `scale` in the sheet. Authors write
+beats; they do not retune the rig for a room versus a city.
+
+This was the rig's biggest design flaw and it took two films to find. Apparent motion goes as
+*linear motion ÷ distance to subject*, so a world-unit constant that is right at 20 m is wrong by
+more than an order of magnitude at 1.5 m. Three separate symptoms, one cause:
+
+| Symptom | Where it bit |
+|---|---|
+| Every room-scale move classified as "a nudge", so one easing curve was used for the whole film | `curveForDistance` thresholds were absolute → now normalised to `scale` |
+| A metre-scale interior failed the still-frame check that a city passed | `verify.mjs` epsilon was absolute → now `4e-3 × scale/20` |
+| A 1.2 m close-up and a 3.4 m wide cannot share one drift rate — the far beat held a motionless frame for 5.2 s while the near beats passed | drift is now **per beat**, scaled by that beat's own subject distance |
+
+`DRIFT_LEAD` stays in seconds, because time does not scale with the room.
+
 ## Known gaps
 
-- **Not yet rendered.** The rig is verified mathematically but has not driven a real Three.js scene
-  to MP4. That is the next loop iteration.
-- **No motion blur.** Continuous camera moves benefit from it; currently out of scope.
-- **`motionFloor` is global.** It should probably scale with the scene's world units; 0.06 suits a
-  diorama roughly 20–30 units across.
+- **No motion blur.** Continuous camera moves benefit from it; currently out of scope, and it is
+  the likeliest remaining cause of perceived judder at 30fps.
+- **Beats are duplicated** between each film's `index.html` and its `*.beats.json`, kept in step by
+  hand. The Three adapter forbids fetching at seek time, so this needs a build step.
+- **`_driftDir` alternates its lateral side by beat index**, which is arbitrary. It should probably
+  follow the composition — drift away from the subject's eyeline, not left-right-left.

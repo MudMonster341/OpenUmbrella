@@ -27,9 +27,9 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="35.33" data-width="1080" data-height="1920">
-      <canvas id="three-layer" class="clip" data-start="0" data-duration="35.33" data-track-index="0" data-layout-allow-overflow></canvas>
-      <div id="vignette" class="clip" data-start="0" data-duration="35.33" data-track-index="1"></div>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="35.5" data-width="1080" data-height="1920">
+      <canvas id="three-layer" class="clip" data-start="0" data-duration="35.5" data-track-index="0" data-layout-allow-overflow></canvas>
+      <div id="vignette" class="clip" data-start="0" data-duration="35.5" data-track-index="1"></div>
     </div>
 
     <script type="module">
@@ -45,11 +45,12 @@
       const SHEET = {
         title: "Zombie Apocalypse Part 1 - The Ration",
         fps: 30,
-        /* Interiors need a much smaller drift than the auto-derived value.
-           At 0.129 u/s a 5.5s hold pushes the camera 0.7m INTO whatever it is
-           looking at — measured: under the table at 17s, inside the lamp at
-           22s, inside a wall at 9s and 14s. */
-        holdDrift: 0.07,
+        /* No holdDrift override. 0.07 was set when this was a cramped 5m room
+           and the camera kept flying into furniture; once the room grew and
+           the camera moved onto an arc outside the props, that value was far
+           too conservative and left the far beats motionless for up to 2s.
+           The auto-derived rate scales with the scene and then again per beat
+           with each beat's own subject distance, which is what this needs. */
         beats: [
           /* Pass 3 - structural. The camera now stays on an arc in FRONT of
              everything (z >= 1.3) and looks across the room, instead of

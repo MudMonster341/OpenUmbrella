@@ -214,3 +214,34 @@ at the BACK of Claude's head.
   frame, the close-up's face is crude.
 - A subagent researching flashloop.ai was still running at cut-off; if it finished it wrote
   `research/flashloop/FINDINGS.md`. Check whether that file exists.
+
+---
+
+## 2026-11-13 — Drift override removed; flashloop deferred; a browser tab was left playing
+
+**Did:**
+- Found why the zombie re-render still failed: I had pinned `holdDrift: 0.07` when the room was a
+  cramped 5m box and the camera kept hitting furniture. After the room was rebuilt twice as large
+  with the camera on an arc outside the props, that constant was far too small — the shelf beat sat
+  motionless for 2.03s. Override removed; the rate now derives from scene scale and then per beat.
+  `verify.mjs` passes 4/4 across 1065 frames. Re-render was still running at hand-off.
+- Wrote `ROADMAP.md`: every goal and task with the evidence that verified it, plus standing
+  blockers and who can clear each. Nothing is ✅ without named evidence.
+- Wrote `research/flashloop/BRIEF.md` and **stopped** the research agent — that work moves to its
+  own chat.
+
+**Why the drift lesson matters beyond this film:** a hand-pinned constant that was correct for one
+version of a scene silently became wrong for the next. That is precisely the failure the
+scale-aware rig exists to prevent, and I had opted out of it by hand. Prefer the derived value;
+if an override is genuinely needed, tie it to something that changes when the scene changes.
+
+**A real operational mistake, worth remembering:** the user asked whether audio was playing on
+their machine. I checked processes, saw only my headless-Chrome render and ffmpeg, and told them
+no source of mine was plausible. That was wrong. The research subagent had been driving the
+**in-app browser**, and a tab was still open on `assets.flashloop.app` with the pane hidden — a
+media domain, invisible to the user, fully capable of playing audio. Closed it.
+**Lesson: when asked whether something of ours is doing X, enumerate what our *subagents* are
+doing too, not just our own processes. A hidden browser pane is still our process.**
+
+**Next:** verify the re-render with filmcheck before marking the zombie row done. Narration still
+blocked on VoiceStudio setup.
