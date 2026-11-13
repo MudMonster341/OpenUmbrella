@@ -78,6 +78,32 @@ and five on the zombie film were all caught by *looking at frames*, none by the 
 
 ---
 
+## Tech debt and known issues — flagged, not buried
+
+Logged 2026-11-13. None of these are blocking today; all of them will cost time if forgotten.
+
+| # | Issue | Why it matters | Fix |
+|---|---|---|---|
+| D1 | **Moving `external_tools/editing/OpenMontage` breaks its venv** | A Python venv bakes absolute paths into its scripts. Already cost one rebuild | Rebuild after any move: `rm -rf .venv && python -m venv .venv && pip install -r requirements.txt && pip install piper-tts`. Or script it |
+| D2 | **HyperFrames checkout is partial** | Windows' 260-char path limit beat the bulk checkout. `packages/studio`, `cli`, `producer` are incomplete. Harmless now — we run it via `npx` — but a trap if we ever read those | `git -c core.longpaths=true restore --source=HEAD <path>`. Same caution before cloning any large monorepo here |
+| D3 | **Films must list the external styles they use** | ADR 0011: lemo-opuscar styles make a film non-commercial. Without the list, nobody can tell which films are clean | A "Styles used" section in every film README. Empty list = commercially clean |
+| D4 | **Beats are duplicated** between each film's `index.html` and its `*.beats.json`, synced by hand | They will drift, and the drift will be silent | A build step that inlines the JSON at render time |
+| D5 | **`scripts/checkpoint.*` is dead code** | Never used; I commit manually with fuller messages | Delete it, or start using it |
+| D6 | **`films/*/lib/onecam.js` is a copy** of `engine/onecam/onecam.js` | Re-synced by hand via `node sync.mjs`; easy to forget | Fold into the D4 build step |
+
+## onecam — improve it against onetake
+
+We have their source as reference ([ADR 0007](decisions/0007-build-continuous-camera-in-house.md)
+stands: read it, never copy it). Our rig has the better foundation — a cut is unrepresentable
+rather than merely detected — but it is the less finished tool.
+
+| # | Gap | Priority | Note |
+|---|---|---|---|
+| C1 | **No motion blur** | **High** | Almost certainly the main cause of the judder that survives a 0% motionless score. The single biggest perceived-quality win available |
+| C2 | **30fps only** | High | onetake drafts at 1080p30 and finals at 4K60. We should at least do 60fps finals |
+| C3 | No reference deconstruction | Medium | Their workflow for rebuilding a look from a reference video |
+| C4 | `_driftDir` alternates sides by beat index | Low | Arbitrary. Should follow composition — drift off the subject's eyeline |
+
 ## Standing blockers
 
 | Blocker | Impact | Who can clear it |

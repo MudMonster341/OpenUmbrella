@@ -10,7 +10,7 @@ Full detail: [ROADMAP.md](ROADMAP.md) · [CONTEXT.md](CONTEXT.md) · [MEMORY.md]
 | **Working on** | Zombie Part 1 — gate still failing on one beat |
 | **Blocked on you** | VoiceStudio setup (1 GUI pass) · Instagram login in Chrome |
 | **Last result** | Render verified: **11% motionless, worst 0.93s** (was 2.03s). All of it in the shelf beat |
-| **Next** | Re-stage the shelf beat — it is both the gate failure and the weakest shot |
+| **Next** | Re-stage the shelf beat, then motion blur + 60fps on onecam |
 
 ## Accomplished
 
@@ -48,9 +48,11 @@ Full detail: [ROADMAP.md](ROADMAP.md) · [CONTEXT.md](CONTEXT.md) · [MEMORY.md]
 | `tools/filmcheck/` | **Ours** — quality gate |
 | `films/paris-proto/` | ✅ passing |
 | `films/zombie-p1/` | 🔬 current film |
-| `research/flashloop/` | Brief only |
-| `vendor/` | 3 reference repos (gitignored) |
-| `OpenMontage/` | Pipeline clone (gitignored) |
+| `research/flashloop/` | Brief only (gitignored) |
+| `external_tools/editing/` | OpenMontage + its venv |
+| `external_tools/motion/` | hyperframes · lemo-opuscar · ClaudeAnimationBase · onetake |
+| `external_tools/art_style/` | empty — references go here |
+| `external_tools/voice/` | empty — VoiceStudio is an installed app |
 
 ## Known problems
 
@@ -60,5 +62,7 @@ Full detail: [ROADMAP.md](ROADMAP.md) · [CONTEXT.md](CONTEXT.md) · [MEMORY.md]
 | No audio on any film | High |
 | Faces crude in close-up | Medium |
 | Shelf beat is the weakest shot | Medium |
-| 30fps, no motion blur | Medium |
+| **No motion blur** — main cause of remaining judder | **High** |
+| 30fps only; onetake does 4K60 | High |
+| 6 tech-debt items logged in ROADMAP | Low |
 | 7.7 GB RAM — ~2m40s per draft | Low |

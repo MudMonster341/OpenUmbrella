@@ -50,19 +50,34 @@ Never describe a non-commercial or source-available project as "open source".
 The stack runs with no paid API keys ([ADR 0002](decisions/0002-zero-key-local-first-default.md)).
 Anything requiring a paid provider is a proposal, never an assumption. Say what it would cost.
 
-### 4. Disclose systematically, don't bury
+### 4. Flag every problem. Never let one pass silently
+
+**The user's standing instruction: be transparent about everything, and never let an error slide
+by unmentioned.** This outranks looking competent.
+
+- A thing that broke and you fixed is still reported — say what broke, why, and what it means
+  going forward. The venv breaking on a folder move was fixed in minutes and still mattered.
+- A partial success is reported as partial. "Mostly worked" is not "worked".
+- If a check passes but the result is poor, **say the result is poor**. A green gate is not a
+  good film, and the gates measure less than they appear to.
+- Anything you worked around rather than solved goes in ROADMAP's tech-debt table the same day.
+- If you told the user something and later find it was wrong, correct it unprompted. This has
+  already happened once: audio was playing from a subagent's hidden browser tab after being told
+  no process of ours could be the source.
+
+### 5. Disclose systematically, don't bury
 
 When reporting on options, always state: the license, the cost, the hardware requirement, the
 maintenance status, and the thing that is most likely to go wrong. Lead with the constraint that
 would change the decision. No recommendation without its downside.
 
-### 5. Write the memory as you go
+### 6. Write the memory as you go
 
 Follow the `project-memory` routine. A decision between real alternatives → a new numbered ADR in
 `decisions/`. A non-obvious failure → an `ERRORS.md` entry. End of a work chunk → a `MEMORY.md`
 entry and a `CONTEXT.md` refresh. Dates are absolute (`2026-11-12`), never relative.
 
-### 6. Produce, then judge — separately
+### 7. Produce, then judge — separately
 
 No render is "done" because the thing that built it says so. Every deliverable goes through the
 review loop in [`GOAL.md`](GOAL.md): automated checks, then a fresh critic pass against the
