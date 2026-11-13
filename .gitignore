@@ -1,6 +1,6 @@
 # Vendored third-party repos — cloned, never edited, re-cloneable from docs/REPO_REGISTRY.md
-OpenMontage/
-vendor/
+external_tools/
+# (vendor/ replaced by external_tools/)
 
 # Secrets
 .env

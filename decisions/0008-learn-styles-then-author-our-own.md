@@ -1,10 +1,10 @@
 ---
-status: accepted
+status: superseded by 0011
 date: 2026-11-12
 authored_by: human
 derived_from: ["user instruction 2026-11-12: keep lemo-opuscar on the side to learn styles from, then author our own"]
 supersedes: null
-superseded_by: null
+superseded_by: 0011
 ---
 
 # 0008 — Study restricted style libraries, author our own style

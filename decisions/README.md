@@ -17,9 +17,10 @@ Template: [0000-template.md](0000-template.md) — never numbered as a real deci
 | [0005](0005-project-root-owns-the-system.md) | The project root owns the system; third-party repos are disposable vendor clones | accepted | 2026-11-12 |
 | [0006](0006-stylized-3d-over-photoreal.md) | Stylized 3D, not photoreal | accepted | 2026-11-12 |
 | [0007](0007-build-continuous-camera-in-house.md) | Build the continuous-camera rig in house | accepted | 2026-11-12 |
-| [0008](0008-learn-styles-then-author-our-own.md) | Study restricted style libraries, author our own style | accepted | 2026-11-12 |
+| [0008](0008-learn-styles-then-author-our-own.md) | Study restricted style libraries, author our own style | **superseded by 0011** | 2026-11-12 |
 | [0009](0009-in-house-before-adoption.md) | Build in house first; adopt only what is clearly better and unencumbered | accepted | 2026-11-12 |
 | [0010](0010-install-reference-repos-with-a-boundary.md) | Install the reference repos locally, with a stated non-commercial boundary | accepted | 2026-11-13 |
+| [0011](0011-use-lemo-opuscar-styles-non-commercially.md) | Use lemo-opuscar styles directly; these films are non-commercial | accepted | 2026-11-13 |
 
 ## Why a directory and not one `DECISIONS.md`
 
