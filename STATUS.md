@@ -41,7 +41,7 @@ Full detail: [ROADMAP.md](ROADMAP.md) · [CONTEXT.md](CONTEXT.md) · [MEMORY.md]
 
 | Path | What |
 |---|---|
-| `CONTEXT/GOAL/ROADMAP/PLANS/MEMORY/ERRORS.md` | The written memory |
+| `STATUS/CONTEXT/GOAL/ROADMAP/MEMORY/ERRORS.md` | The written memory |
 | `decisions/` | 10 numbered ADRs |
 | `docs/` | Animation standard, repo playbook, registry, walkthrough |
 | `engine/onecam/` | **Ours** — continuous-camera rig + verifier |

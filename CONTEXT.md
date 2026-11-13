@@ -61,7 +61,6 @@ method is awaiting approval. No third-party motion-design skills installed; all 
 in [docs/REPO_REGISTRY.md](docs/REPO_REGISTRY.md).
 
 **Next:** drive onecam through a real Three.js render and close the loop with filmcheck on the
-output — see [PLANS.md](PLANS.md).
 
 ## How to run it
 
@@ -89,7 +88,7 @@ without it narration silently has no provider.
 
 | Path | What it is |
 |---|---|
-| `CONTEXT.md`, `GOAL.md`, `PLANS.md`, `MEMORY.md`, `ERRORS.md`, `decisions/` | Our written memory — the system |
+| `STATUS/CONTEXT/GOAL/ROADMAP/MEMORY/ERRORS.md`, `decisions/` | Our written memory — the system |
 | `engine/onecam/` | **Ours.** Continuous-camera rig, beat-sheet schema, design-time verifier |
 | `tools/filmcheck/` | **Ours.** Quality gate — measures a finished MP4 against GOAL.md |
 | `docs/` | Walkthrough, motion-quality research, the third-party repo registry |
@@ -117,7 +116,7 @@ without it narration silently has no provider.
 - [GOAL.md](GOAL.md) — the target film, the quality standards, and the review loop
 - [docs/ANIMATION_STANDARD.md](docs/ANIMATION_STANDARD.md) — the craft layer the gates cannot measure
 - [docs/REPO_PLAYBOOK.md](docs/REPO_PLAYBOOK.md) — what each installed component is for
-- [PLANS.md](PLANS.md) — phased plan and what is active now
+- [decisions/](decisions/) — numbered architecture decision records
 - [MEMORY.md](MEMORY.md) — dated log of what happened and why
 - [ERRORS.md](ERRORS.md) — failures hit and how they were resolved
 - [decisions/](decisions/) — numbered architecture decision records

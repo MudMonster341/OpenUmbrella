@@ -23,7 +23,7 @@ and five on the zombie film were all caught by *looking at frames*, none by the 
 |---|---|---|
 | ✅ | OpenMontage cloned and set up | `provider_menu_summary()` → all three runtimes `true` |
 | ✅ | FFmpeg, venv, Remotion, HyperFrames, Piper installed | Three zero-key demos rendered, ffprobe-verified 1920×1080 h264+aac |
-| ✅ | Project memory system | `CONTEXT/GOAL/PLANS/MEMORY/ERRORS` + 10 ADRs, committed |
+| ✅ | Project memory system | `CONTEXT/GOAL/ROADMAP/MEMORY/ERRORS` + 10 ADRs, committed |
 | ✅ | Third-party repo registry with licence screening | `docs/REPO_REGISTRY.md`; two non-commercial repos identified before use |
 
 ## Phase 2 — In-house tooling ✅

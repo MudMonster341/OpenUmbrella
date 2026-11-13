@@ -128,5 +128,5 @@ using Claude and agents well. Once it passes Gate 5, the reusable parts — styl
 rig, character, caption treatment, audio chain — are frozen into a house style so film #2 starts
 from film #1's taste instead of from zero.
 
-Planned subjects, in [PLANS.md](PLANS.md): what an agent loop actually is, working with Claude on
+Planned subjects, in [ROADMAP.md](ROADMAP.md) Phase 6: what an agent loop actually is, working with Claude on
 real work, and what happens when you type a prompt.

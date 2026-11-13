@@ -192,3 +192,27 @@ git clone https://github.com/OpenMontageInc/OpenMontage.git OpenMontage
 ```
 
 Then follow [WALKTHROUGH.md](WALKTHROUGH.md) §2 for setup. Nothing else is installed yet.
+
+---
+
+## Pinned commits — recorded 2026-11-13
+
+The vendor tree is gitignored, so these SHAs are the only record of what we actually studied.
+[ADR 0005](../decisions/0005-project-root-owns-the-system.md) named "an upstream break costing a
+debugging session" as the tripwire for pinning; recording the SHAs now costs nothing and makes the
+tree exactly reproducible.
+
+| Path | Origin | Commit | Size |
+|---|---|---|---|
+| `OpenMontage/` | `OpenMontageInc/OpenMontage` | `fecb9a1` | 1131 MB |
+| `vendor/onetake/` | `feitangyuan/onetake` | `abb6d17` | — |
+| `vendor/lemo-opuscar/` | `lemomo-ai/lemo-opuscar` | `3a7132b` | — |
+| `vendor/ClaudeAnimationBase/` | `JohnHeibel/ClaudeAnimationBase` | `0ac8bf2` | — |
+
+`vendor/` totals 497 MB. To rebuild exactly:
+
+```bash
+git clone https://github.com/feitangyuan/onetake.git vendor/onetake && git -C vendor/onetake checkout abb6d17
+```
+
+Repeat per row, then follow [WALKTHROUGH.md](WALKTHROUGH.md) §2 for the OpenMontage setup.
