@@ -25,7 +25,7 @@ starts from the first film's standards instead of from zero.
 
 **Phase 1 — setup complete and verified (2026-11-12).**
 
-- OpenMontage cloned to `OpenMontage/` (gitignored vendor clone). Python venv, all dependencies,
+- OpenMontage cloned to `external_tools/editing/OpenMontage/` (gitignored). Python venv, all dependencies,
   Remotion (199 packages, esbuild postinstall approved), HyperFrames CLI 0.9.39, FFmpeg 9.0.2,
   Piper TTS with the `en_US-lessac-medium` voice.
 - All three composition runtimes report live: `{"ffmpeg": true, "remotion": true, "hyperframes": true}`.
@@ -65,7 +65,7 @@ in [docs/REPO_REGISTRY.md](docs/REPO_REGISTRY.md).
 ## How to run it
 
 ```powershell
-cd OpenMontage
+cd external_tools/editing/OpenMontage
 .\.venv\Scripts\Activate.ps1
 ```
 
@@ -93,9 +93,8 @@ without it narration silently has no provider.
 | `tools/filmcheck/` | **Ours.** Quality gate — measures a finished MP4 against GOAL.md |
 | `docs/` | Walkthrough, motion-quality research, the third-party repo registry |
 | `scripts/` | `checkpoint.ps1` / `checkpoint.sh` — commit and push the memory files |
-| `OpenMontage/` | Vendored clone of the production pipeline. **Gitignored. Never edited.** |
-| `vendor/` | Future third-party clones, one directory each. **Gitignored.** |
-| `OpenMontage/projects/<id>/` | Per-production workspace: artifacts, assets, renders |
+| `external_tools/` | All external clones, by category: `editing/` `motion/` `art_style/` `voice/`. **Gitignored, never edited.** See its README |
+| `films/<name>/` | Our film projects: composition, beats, renders |
 
 ## Constraints
 

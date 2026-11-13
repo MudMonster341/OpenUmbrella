@@ -245,3 +245,33 @@ doing too, not just our own processes. A hidden browser pane is still our proces
 
 **Next:** verify the re-render with filmcheck before marking the zombie row done. Narration still
 blocked on VoiceStudio setup.
+
+---
+
+## 2026-11-13 — Restructured into external_tools/; lemo-opuscar adopted
+
+**Did:**
+- All external clones moved under `external_tools/`, segregated by role: `editing/` (OpenMontage),
+  `motion/` (hyperframes, lemo-opuscar, ClaudeAnimationBase, onetake), `art_style/` (empty, for
+  references the user will supply), `voice/` (empty — VoiceStudio is an installed app).
+- **Cloned the HyperFrames source**, which had never been fetched — we only ever used its npm CLI,
+  so 210 registry blocks and 239 components had been sitting unexamined.
+- Rebuilt the OpenMontage venv, which the move broke. All three runtimes verified live again.
+- Retired `PLANS.md` into `ROADMAP.md` and pinned every vendor commit in the registry.
+
+**Why:** the user's framing is right and worth keeping: *outside code supplies capability and
+reference; the work is ours.* The flat `vendor/` gave no signal about what each repo was for, and
+category folders make the licence boundary visible at a glance rather than buried in a doc.
+
+**Decisions:** [ADR 0011](decisions/0011-use-lemo-opuscar-styles-non-commercially.md) supersedes
+0008 — the films are non-commercial, so lemo-opuscar's 101 styles are usable directly. Two
+obligations recorded rather than remembered: attribution is required, and the output inherits the
+restriction, so each film lists the external styles it used. A film with an empty list is
+commercially clean.
+
+**Failures:** the HyperFrames checkout is **partial** — Windows' 260-character path limit defeats a
+deep monorepo under a long base path. `git -c core.longpaths=true restore --source=HEAD <path>`
+recovered the parts that matter. Worth knowing before cloning any other large monorepo here.
+
+**Next:** re-stage the shelf beat — still the gate failure and the weakest shot. VoiceStudio
+runtime was installing at hand-off; verify with `voicestudio models list`.

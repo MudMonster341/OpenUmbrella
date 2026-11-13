@@ -6,9 +6,9 @@ Upstream docs are `README.md`, `AGENT_GUIDE.md`, `PROJECT_CONTEXT.md`, `PROMPT_G
 This file is an orientation layer on top of them: what the thing is, what it can do, what it needs on *this* machine,
 and four concrete marketing cases to try.
 
-> **Paths in this document are relative to `OpenMontage/`**, not to the project root. This file lives at the root
+> **Paths in this document are relative to `external_tools/editing/OpenMontage/`**, not to the project root. This file lives at the root
 > under `docs/` because it is ours, not upstream's — see [ADR 0005](../decisions/0005-project-root-owns-the-system.md).
-> Run every command below from inside `OpenMontage/` with its venv activated.
+> Run every command below from inside `external_tools/editing/OpenMontage/` with its venv activated.
 
 ---
 
