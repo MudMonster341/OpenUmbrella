@@ -113,8 +113,11 @@ without it narration silently has no provider.
 
 ## Memory
 
+- [ROADMAP.md](ROADMAP.md) — **every goal and task, with the evidence that verified it, and the standing blockers**
 - [GOAL.md](GOAL.md) — the target film, the quality standards, and the review loop
-- [PLANS.md](PLANS.md) — phased roadmap and what is active now
+- [docs/ANIMATION_STANDARD.md](docs/ANIMATION_STANDARD.md) — the craft layer the gates cannot measure
+- [docs/REPO_PLAYBOOK.md](docs/REPO_PLAYBOOK.md) — what each installed component is for
+- [PLANS.md](PLANS.md) — phased plan and what is active now
 - [MEMORY.md](MEMORY.md) — dated log of what happened and why
 - [ERRORS.md](ERRORS.md) — failures hit and how they were resolved
 - [decisions/](decisions/) — numbered architecture decision records

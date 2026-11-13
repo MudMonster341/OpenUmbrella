@@ -1,8 +1,12 @@
 # marketing_video_flow — agent entry point
 
 **Read [`CONTEXT.md`](CONTEXT.md) first, in full, before doing anything else.** Then
-`tail -n 150 MEMORY.md`, then search [`ERRORS.md`](ERRORS.md) for terms from the task.
+`tail -n 150 MEMORY.md`, then [`ROADMAP.md`](ROADMAP.md) for what is done, what is blocked and
+what is next, then search [`ERRORS.md`](ERRORS.md) for terms from the task.
 [`GOAL.md`](GOAL.md) holds the quality bar every deliverable is judged against.
+
+**Nothing is marked done in ROADMAP.md without evidence** — the command, measurement or artefact
+that proves it. A passing automated check is not evidence that a film is good: look at the frames.
 
 This is **our** repo. `OpenMontage/` and `vendor/` are third-party clones — gitignored, never
 edited in place, always re-creatable from [`docs/REPO_REGISTRY.md`](docs/REPO_REGISTRY.md).
