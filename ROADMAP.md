@@ -63,7 +63,7 @@ and five on the zombie film were all caught by *looking at frames*, none by the 
 
 | | Task | Evidence / next |
 |---|---|---|
-| ⬜ | flashloop.ai teardown | **Deferred to its own chat, deliberately.** Brief written: `research/flashloop/BRIEF.md`. No findings exist — the one carried-forward fact is that their "Faceless Studio" is described as **"drawn in code"**, and settling what that means is the priority. Do not assume anything else from the stopped attempt |
+| ⬜ | flashloop.ai teardown | **Deferred to its own chat, deliberately.** Brief at `research/flashloop/BRIEF.md` — **local only, `research/` is gitignored**, so it is not in a fresh clone. No findings exist. The one carried-forward fact: their "Faceless Studio" is described as **"drawn in code"**; settling what that means is the priority. Assume nothing else from the stopped attempt |
 | ⬜ | Instagram reference board | Needs Instagram login in Chrome. I can read frames, not audio |
 | ⬜ | Reverse-engineer method, generalised | Make the flashloop teardown a repeatable workflow for any reference product |
 
