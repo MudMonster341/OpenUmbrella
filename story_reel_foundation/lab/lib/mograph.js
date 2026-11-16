@@ -15,11 +15,18 @@ export function makeInserts(root) {
   const wrap = document.createElement("div"); wrap.id = "inserts"; wrap.className = "ov"; root.appendChild(wrap);
   wrap.innerHTML = `
   <div id="room"><div id="lampglow"></div><div id="bok1" class="bok"></div><div id="bok2" class="bok"></div><div id="bok3" class="bok"></div><div id="table"></div></div>
-  <div id="phoneWrap"><div id="phShadow"></div><div id="phone">
+  <div id="phoneWrap"><div id="phShadow"></div><div id="phRig">
+    <div id="phHandBack"><i class="phF" style="top:560px"></i><i class="phF" style="top:690px"></i><i class="phF" style="top:820px"></i><i class="phF" style="top:950px;width:92px"></i><div id="phPalm"></div></div>
+    <div id="phone">
     <div id="notch"></div>
-    <div id="phHeader"><div id="phPhoto">${ME_SVG}</div><div id="phStamp"><svg viewBox="0 0 40 56" width="34" height="46"><path d="M6 4h28M6 52h28M10 4c0 14 8 16 10 24-2 8-10 10-10 24M30 4c0 14-8 16-10 24 2 8 10 10 10 24" fill="none" stroke="#17171c" stroke-width="5" stroke-linecap="round"/><path d="M13 44h14c-2-6-5-8-7-9-2 1-5 3-7 9z" fill="#17171c"/></svg><span id="phNum"></span></div></div>
-    <div id="phThread">${[0,1,2,3,4,5].map((i) => `<div class="phB" data-i="${i}"><span class="phT"></span><span class="phDots"><i></i><i></i><i></i></span></div>`).join("")}</div>
+    <div id="phLock"><div id="phLockTime"></div>
+      <div id="phBanner"><div id="phRipple"></div><div id="phBPhoto">${ME_SVG}</div><div id="phBText"><b id="phBName">ME</b><span id="phBPrev"></span></div></div></div>
+    <div id="phChat"><div id="phHeader"><div id="phPhoto">${ME_SVG}</div><b id="phName">ME</b></div>
+      <div id="phThread">${[0,1,2,3,4,5].map((i) => `<div class="phB" data-i="${i}"><span class="phT"></span><span class="phDots"><i></i><i></i><i></i></span></div>`).join("")}</div>
+      <div id="phHome"></div></div>
     <div id="buzzL" class="buzz"></div><div id="buzzR" class="buzz"></div>
+    </div>
+    <div id="phThumb"></div>
   </div></div>
   <div id="clockWrap"><svg id="clock" viewBox="0 0 400 400">
     <defs><radialGradient id="cg" cx="45%" cy="40%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9e6dc"/></radialGradient></defs>
@@ -42,40 +49,58 @@ export function makeInserts(root) {
   }
   const q = (s) => wrap.querySelector(s);
   const more = makeMore(wrap);
-  return { ...more, wrap, room: q("#room"), phoneWrap: q("#phoneWrap"), phone: q("#phone"), num: q("#phNum"), bubble: q(".phB"), bubs: [...wrap.querySelectorAll(".phB")], buzzL: q("#buzzL"), buzzR: q("#buzzR"),
+  return { ...more, wrap, room: q("#room"), phoneWrap: q("#phoneWrap"), phone: q("#phRig"), lockTime: q("#phLockTime"), lock: q("#phLock"), banner: q("#phBanner"), ripple: q("#phRipple"), prev: q("#phBPrev"), chat: q("#phChat"), bubble: q(".phB"), bubs: [...wrap.querySelectorAll(".phB")], buzzL: q("#buzzL"), buzzR: q("#buzzR"),
            clockWrap: q("#clockWrap"), minH: q("#minH"), hourH: q("#hourH"), secH: q("#secH"), shadow: q("#phShadow") };
 }
 
-/* phone: { t0, t1, stamp, push: [s0, s1], bg?, buzz?: [times] (default: one per incoming bubble),
-     bubble: { t, text }  OR  bubbles: [{ t, text, side?: "them"|"me", typing?: seconds of dots before t (me), until?: time to remove }] (max 6, last 3 shown) } */
+/* phone: { t0, t1, notifyAt?, openAt?, lockTime?, preview?, buzz?: [times], bubble: { t, text } OR bubbles: [{ t, text, side?: "them"|"me", typing?, until? }] (max 6, last 3 shown), push: [s0, s1], bg? }
+   1) the lock screen (the clock, only if lockTime is given); at notifyAt a banner (the sender's photo, "ME", a one-line preview) slides in and the phone buzzes;
+   2) at openAt (default notifyAt + 0.7) the banner is tapped and grows into the chat thread. Default notifyAt = the first bubble's time - 1.0.
+   The phone is hand-held over the blurred street (bg "blur"): a sway, a hand, a drop shadow; every buzz shakes it. */
 export function applyPhone(o, T, P) {
   const on = P && T >= P.t0 && T < P.t1;
   o.room.style.opacity = on && P.bg !== "blur" ? 1 : 0; o.phoneWrap.style.opacity = on ? 1 : 0;   /* bg blur: the street behind, not a bedroom */
   if (!on) return;
-  const u = (T - P.t0) / (P.t1 - P.t0), s = P.push[0] + (P.push[1] - P.push[0]) * easeInOut(u);
-  let bx = 0, br = 0, buzzAmt = 0;
-  const buzzes = P.buzz || (P.bubbles || []).filter((b) => b.side !== "me").map((b) => b.t);
-  for (const b of buzzes) { const d = T - b; if (d >= 0 && d < 0.55) { const a = (1 - d / 0.55); buzzAmt = Math.max(buzzAmt, a); bx += Math.sin(d * 190) * 7 * a; br += Math.sin(d * 150 + 1) * 1.2 * a; } }
-  const swayX = Math.sin(T * 1.3) * 7, swayY = Math.sin(T * 0.9 + 1) * 9, swayR = Math.sin(T * 1.1 + 2) * 1.1;   /* held in a hand: it is never perfectly still (filmcheck M1, 2026-11-16) */
-  o.phone.style.transform = `translate(${bx + swayX}px, ${swayY}px) rotateX(26deg) rotateZ(${-8 + br + swayR}deg) scale(${s})`;
-  o.shadow.style.transform = `translateX(${bx * 0.6}px) rotateX(26deg) rotateZ(-8deg) scale(${s})`;
-  o.buzzL.style.opacity = o.buzzR.style.opacity = buzzAmt.toFixed(3);
-  const k = easeOut((T - P.t0) / 0.16);
-  o.num.textContent = P.stamp; o.num.style.transform = `scale(${1 + 0.35 * (1 - k)})`;       /* slammed in already at its value */
   const list = P.bubbles || [P.bubble];
-  const started = list.map((b) => T >= b.t - (b.typing || 0));
+  const nAt = P.notifyAt ?? Math.max(P.t0 + 0.08, list[0].t - 1.0), oAt = P.openAt ?? nAt + 0.7;
+  const u = (T - P.t0) / (P.t1 - P.t0), s = P.push[0] + (P.push[1] - P.push[0]) * easeInOut(u);
+  let bx = 0, by = 0, br = 0, buzzAmt = 0;
+  const buzzes = [...(P.buzz || (P.bubbles || []).filter((b) => b.side !== "me").map((b) => b.t)), nAt, nAt + 0.42];
+  for (const b of buzzes) { const d = T - b; if (d >= 0 && d < 0.5) { const a = (1 - d / 0.5); buzzAmt = Math.max(buzzAmt, a); bx += Math.sin(d * 210) * 13 * a; by += Math.cos(d * 170) * 6 * a; br += Math.sin(d * 150 + 1) * 2.2 * a; } }
+  const swayX = Math.sin(T * 1.3) * 9, swayY = Math.sin(T * 0.9 + 1) * 11, swayR = Math.sin(T * 1.1 + 2) * 1.3;   /* held in a hand: it is never perfectly still (filmcheck M1, 2026-11-16) */
+  o.phone.style.transform = `translate(${bx + swayX}px, ${by + swayY}px) rotateX(18deg) rotateZ(${-6 + br + swayR}deg) scale(${s})`;
+  o.shadow.style.transform = `translate(${bx * 0.6 + 40}px, ${60 + by * 0.6}px) rotateX(18deg) rotateZ(-6deg) scale(${s * 0.97})`;
+  o.buzzL.style.opacity = o.buzzR.style.opacity = buzzAmt.toFixed(3);
+  /* the lock screen and the banner */
+  o.lockTime.textContent = P.lockTime || ""; o.lockTime.style.display = P.lockTime ? "block" : "none";
+  const ent = T - nAt, slide = ent >= 0 ? back(ent / 0.5) : 0, k = clamp01((T - oAt) / 0.4), e = easeInOut(k);
+  const press = T >= oAt - 0.18 && T < oAt ? easeOut((T - oAt + 0.18) / 0.18) : T >= oAt ? 1 - easeOut((T - oAt) / 0.12) : 0;
+  const prevText = P.preview || list[0].text;
+  if (o.prev.textContent !== prevText) { o.prev.textContent = prevText; o.prev.style.fontSize = "30px"; const w = o.prev.scrollWidth; if (w > 372) o.prev.style.fontSize = Math.floor(30 * 372 / w) + "px"; }
+  o.banner.style.opacity = ent >= 0 ? clamp01(1 - k * 3) : 0;
+  o.banner.style.transform = `translateY(${(1 - slide) * -520}px) scale(${1 - 0.04 * press})`;
+  const rp = clamp01((T - oAt + 0.18) / 0.43);
+  o.ripple.style.opacity = T >= oAt - 0.18 && T < oAt + 0.25 ? (0.6 * (1 - rp)).toFixed(3) : 0;
+  o.ripple.style.transform = `translate(-50%, -50%) scale(${0.3 + 1.6 * rp})`;
+  o.lock.style.opacity = (1 - clamp01((k - 0.3) / 0.5)).toFixed(3); o.lock.style.transform = `scale(${1 + 0.05 * e})`;
+  /* the chat grows out of the banner's rectangle */
+  const ci = (x) => (x * (1 - e)).toFixed(2);
+  o.chat.style.clipPath = `inset(${ci(420)}px ${ci(22)}px ${ci(640)}px ${ci(22)}px round ${ci(40)}px)`;
+  o.chat.style.opacity = clamp01((k - 0.1) / 0.3).toFixed(3);
+  /* the thread */
+  const startT = (b) => Math.max(b.t - (b.typing || 0), oAt + 0.25);
   o.bubs.forEach((el, i) => {
     const b = list[i];
-    const later = b ? list.filter((c, j) => j > i && T >= c.t - (c.typing || 0)).length : 0;
-    const vis = !!b && started[i] && later < 3 && (b.until == null || T < b.until);
+    const later = b ? list.filter((c, j) => j > i && T >= startT(c)).length : 0;
+    const vis = !!b && T >= startT(b) && later < 3 && (b.until == null || T < b.until);
     el.style.display = vis ? "inline-block" : "none";
     if (!vis) return;
     const me = b.side === "me", typing = b.typing || 0, typingNow = typing > 0 && T < b.t;
     el.classList.toggle("me", me);
-    const t0 = typingNow ? b.t - typing : b.t, bt = T - t0;
+    const t0 = typingNow ? b.t - typing : Math.max(b.t, oAt + 0.25), bt = T - t0;
     el.querySelector(".phT").style.display = typingNow ? "none" : "inline";
     const dots = el.querySelector(".phDots"); dots.style.display = typingNow ? "inline-flex" : "none";
-    if (typingNow) [...dots.children].forEach((d, k) => { d.style.transform = `translateY(${-Math.abs(Math.sin(T * 7 - k * 0.8)) * 14}px)`; d.style.opacity = 0.45 + 0.55 * Math.abs(Math.sin(T * 7 - k * 0.8)); });
+    if (typingNow) [...dots.children].forEach((d, k2) => { d.style.transform = `translateY(${-Math.abs(Math.sin(T * 7 - k2 * 0.8)) * 14}px)`; d.style.opacity = 0.45 + 0.55 * Math.abs(Math.sin(T * 7 - k2 * 0.8)); });
     else el.querySelector(".phT").textContent = b.text;
     const pop = typingNow ? back(bt / 0.25) : back(bt / 0.35);
     el.style.transformOrigin = me ? "100% 100%" : "0 100%";
@@ -103,12 +128,29 @@ export function applyClock(o, T, C) {
    The newer inserts (2026-11-16): the text run, the racing number, ME's photo with the replay band,
    the calendar, the end card. Their CSS is injected here, so index.html needs nothing for them. */
 const CSS = `
-#phThread { display: flex; flex-direction: column; gap: 22px; }
-.phB { display: none; align-self: flex-start; max-width: 520px; padding: 28px 38px; background: #fff; border: 5px solid #17171c; border-radius: 44px 44px 44px 10px; font-size: 56px; font-weight: 700; color: #17171c; line-height: 1.12; }
-.phB.me { align-self: flex-end; background: #17171c; color: #fff; border-radius: 44px 44px 10px 44px; }
-.phDots { display: none; gap: 14px; align-items: center; height: 56px; padding: 0 6px; } .phDots i { width: 22px; height: 22px; border-radius: 50%; background: #fff; display: block; }
+#notch { z-index: 6; }
+#phRig { position: absolute; left: -330px; top: -640px; width: 660px; height: 1280px; transform-origin: 50% 60%; }
+#phLock { position: absolute; inset: 0; background: radial-gradient(circle at 20% 12%, rgba(255,190,140,0.75), rgba(255,190,140,0) 46%), radial-gradient(circle at 85% 70%, rgba(110,150,255,0.55), rgba(110,150,255,0) 50%), linear-gradient(170deg, #3a3f78 0%, #7a4f8e 52%, #d9775f 100%); }
+#phLockTime { position: absolute; left: 0; right: 0; top: 150px; text-align: center; font-size: 150px; line-height: 1; color: #fff; font-weight: 700; text-shadow: 0 6px 24px rgba(0,0,0,0.28); }
+#phBanner { position: absolute; left: 22px; top: 420px; width: 572px; height: 176px; display: flex; align-items: center; gap: 22px; padding: 0 26px; background: rgba(255,255,255,0.92); border: 4px solid #17171c; border-radius: 40px; box-shadow: 0 20px 44px rgba(0,0,0,0.38); opacity: 0; overflow: hidden; }
+#phBPhoto { flex: none; width: 104px; height: 104px; border-radius: 50%; overflow: hidden; border: 4px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.25); } #phBPhoto svg { width: 100%; height: 100%; display: block; }
+#phBText { display: flex; flex-direction: column; gap: 6px; min-width: 0; } #phBName { font-size: 36px; line-height: 1; color: #17171c; font-weight: 800; }
+#phBPrev { font-size: 30px; line-height: 1.1; color: #3a3a46; font-weight: 600; white-space: nowrap; }
+#phRipple { position: absolute; left: 76%; top: 50%; width: 120px; height: 120px; border-radius: 50%; background: rgba(23,23,28,0.35); opacity: 0; }
+#phChat { position: absolute; inset: 0; background: linear-gradient(180deg, #fbf8f2 0%, #efe8dc 100%); opacity: 0; }
+#phHeader { position: absolute; left: 0; right: 0; top: 0; height: 270px; background: rgba(255,255,255,0.75); border-bottom: 3px solid #e0d9cb; border-radius: 0 0 44px 44px; box-shadow: 0 10px 26px rgba(60,40,20,0.14); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; padding-bottom: 24px; }
+#phPhoto { width: 120px; height: 120px; border-radius: 50%; overflow: hidden; border: 5px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,0.25); } #phPhoto svg { width: 100%; height: 100%; display: block; }
+#phName { font-size: 38px; line-height: 1; color: #17171c; font-weight: 800; }
+#phHome { position: absolute; left: 50%; bottom: 22px; width: 200px; height: 8px; margin-left: -100px; border-radius: 4px; background: rgba(23,23,28,0.35); }
+#phHandBack { position: absolute; inset: 0; } #phHandBack .phF { position: absolute; left: 600px; width: 100px; height: 116px; border-radius: 58px; background: #d6a37f; border: 6px solid #17171c; }
+#phPalm { position: absolute; left: 90px; top: 1010px; width: 500px; height: 560px; border-radius: 200px; background: #c89470; border: 6px solid #17171c; }
+#phThumb { position: absolute; left: -64px; top: 1000px; width: 290px; height: 112px; border-radius: 56px; background: #d6a37f; border: 6px solid #17171c; transform: rotate(-26deg); transform-origin: 20% 50%; box-shadow: 0 12px 24px rgba(0,0,0,0.3); }
+#phThread { position: absolute; left: 36px; right: 36px; top: 310px; display: flex; flex-direction: column; gap: 22px; }
+.phB { display: none; align-self: flex-start; max-width: 480px; padding: 26px 34px; background: #fff; border: 4px solid #17171c; border-radius: 40px 40px 40px 10px; font-size: 50px; font-weight: 700; color: #17171c; line-height: 1.12; box-shadow: 0 10px 22px rgba(60,40,20,0.2); }
+.phB.me { align-self: flex-end; background: #17171c; color: #fff; border-radius: 40px 40px 10px 40px; }
+.phDots { display: none; gap: 14px; align-items: center; height: 50px; padding: 0 6px; } .phDots i { width: 20px; height: 20px; border-radius: 50%; background: #9a9486; display: block; } .phB.me .phDots i { background: #fff; }
 .mgI { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
-.mgBg { position: absolute; inset: 0; background-size: 100% 100%, 110px 110px; }
+.mgBg { position: absolute; inset: 0; background-size: 100% 100%, 110px 110px; backdrop-filter: blur(10px); }
 .mgBox { position: absolute; background: #fff; border: 8px solid #17171c; border-radius: 56px; box-shadow: 0 30px 60px rgba(0,0,0,0.35); }
 #nmCard { left: 90px; top: 640px; width: 900px; height: 480px; display: flex; align-items: center; justify-content: center; gap: 24px; }
 #nmDigits { display: flex; align-items: center; font-size: 240px; line-height: 1; color: #17171c; font-weight: 800; }
@@ -207,7 +249,7 @@ const fmt = (n) => Math.round(n).toLocaleString("en-US");
    then a red "-N" pill (N = from - to) lands. Digits are fixed-width, so they never jitter. */
 export function applyNumber(o, T, N) {
   const on = N && T >= N.t0 && T < N.t1; o.nm.style.opacity = on ? 1 : 0; if (!on) return;
-  bgStyle(o.nmBg, T, "#1d2a44", "rgba(120,160,255,0.35)", "rgba(255,255,255,0.10)");
+  bgStyle(o.nmBg, T, "rgba(20,30,60,0.42)", "rgba(120,160,255,0.25)", "rgba(255,255,255,0.10)");
   const u = clamp01((T - N.raceAt) / (N.landAt - N.raceAt)), e = 1 - Math.pow(1 - u, 4), v = N.from + (N.to - N.from) * e;
   o.nmDigits.innerHTML = fmt(v).split("").map((c) => `<b class="${c === "," ? "c" : ""}">${c}</b>`).join("");
   o.nmDigits.style.color = `rgb(${Math.round(23 + (216 - 23) * e)},${Math.round(23 + (54 - 23) * e)},${Math.round(28 + (58 - 28) * e)})`;
@@ -225,7 +267,7 @@ export function applyNumber(o, T, N) {
    the four event thumbnails slide and pulse in turn behind the portrait card, each with a cost chip. */
 export function applyMe(o, T, M) {
   const on = M && T >= M.t0 && T < M.t1; o.me.style.opacity = on ? 1 : 0; if (!on) return;
-  bgStyle(o.meBg, T, "#3a2a52", "rgba(255,150,120,0.30)", "rgba(255,255,255,0.08)");
+  bgStyle(o.meBg, T, "rgba(40,24,64,0.42)", "rgba(255,150,120,0.22)", "rgba(255,255,255,0.08)");
   const u = clamp01((T - M.t0) / (M.t1 - M.t0)), d = M.damage[0] + (M.damage[1] - M.damage[0]) * easeInOut(u);
   o.marks.forEach((g) => { const th = +g.dataset.th, a = clamp01((d - th) / 0.07); g.style.opacity = a; g.style.transformBox = "fill-box"; g.style.transformOrigin = "center"; g.style.transform = a > 0 && a < 1 ? `scale(${1 + 0.15 * (1 - a)})` : "none"; });
   const en = back((T - M.t0) / 0.35), flo = Math.sin((T - M.t0) * 1.5);
@@ -244,7 +286,7 @@ export function applyMe(o, T, M) {
 /* calendar: { t0, t1, drawAt?: time the red circle starts to draw (t0 + 0.6), drawDur?: 0.5 } */
 export function applyCalendar(o, T, C) {
   const on = C && T >= C.t0 && T < C.t1; o.ca.style.opacity = on ? 1 : 0; if (!on) return;
-  bgStyle(o.caBg, T, "#2f7d6b", "rgba(255,240,170,0.35)", "rgba(255,255,255,0.09)");
+  bgStyle(o.caBg, T, "rgba(30,90,76,0.40)", "rgba(255,240,170,0.25)", "rgba(255,255,255,0.09)");
   const en = back((T - C.t0) / 0.35), dd = C.drawDur || 0.5, at = C.drawAt ?? C.t0 + 0.6, dr = easeInOut((T - at) / dd);
   o.caPath.setAttribute("stroke-dasharray", "1 1"); o.caPath.setAttribute("stroke-dashoffset", (1 - dr).toFixed(4));
   const sway = Math.sin((T - C.t0) * 1.3), pulse = T > at + dd ? 1 + 0.025 * Math.sin((T - at - dd) * 7) : 1;
@@ -256,7 +298,7 @@ export function applyCalendar(o, T, C) {
 export function applyEndCard(o, T, E) {
   const on = E && T >= E.t0 && T < E.t1; o.en.style.opacity = on ? 1 : 0; if (!on) return;
   const dt = T - E.t0;
-  bgStyle(o.enBg, T, "#17171c", "rgba(255,216,74,0.18)", "rgba(255,255,255,0.07)");
+  bgStyle(o.enBg, T, "rgba(16,16,22,0.5)", "rgba(255,216,74,0.18)", "rgba(255,255,255,0.07)");
   o.enRays.style.backgroundImage = "conic-gradient(from " + (dt * 14) + "deg at 50% 46%, rgba(255,216,74,0.16) 0 10deg, rgba(0,0,0,0) 10deg 30deg)"; o.enRays.style.backgroundSize = "auto"; o.enRays.style.backgroundPosition = "0 0";
   const k = back(dt / 0.34), slam = dt < 0.34 ? 1 : 1 + 0.03 * Math.sin((dt - 0.34) * 2.4);
   o.enCard.style.transform = `scale(${(2.4 - 1.4 * k) * slam}) rotate(${(1 - k) * -9 + Math.sin(dt * 1.4) * 1.2}deg)`; o.enCard.style.opacity = clamp01(dt / 0.06);

@@ -40,7 +40,7 @@ export function evaluate(shot, log = false) {
   for (let T_ = shot.t0; T_ < shot.t1 - 1e-6; T_ += 0.05) {
     const tw = worldT(T_), cam = camAt(shot, T_), pts = [];
     if (tw >= SQ.t0 && tw <= SQ.t1) { const z = SQ.z0 + (SQ.z1 - SQ.z0) * sqz(tw); pts.push(["squirrel", [SQ.x, 0.05, z]], ["squirrel", [SQ.x, 0.35 * (SQ.scale ?? 1), z]]); }
-    if (T_ >= tSud - 1e-6 && T_ <= IMP + 1e-6) { const p = busPose(tw); for (const lz of [-1.25, 1.25]) for (const ly of [0.3, 2.2]) pts.push(["bus", bw(p, 3.1, ly, lz)]); }
+    if (T_ >= Math.max(tSud, IMP - 3.0) - 1e-6 && T_ <= IMP + 1e-6) {   /* the last 3 s (~18 m) before the hit: at a steady 6 m/s the bus comes from far away (v9, 2026-11-17) */ const p = busPose(tw); for (const lz of [-1.25, 1.25]) for (const ly of [0.3, 2.2]) pts.push(["bus", bw(p, 3.1, ly, lz)]); }
     if (T_ >= IMP - 1 && T_ <= IMP + 1) for (const x of [-1.55, 1.95]) pts.push(["shelter", [x, 2.4, -1.3]]);
     for (const [what, p] of pts) {
       const q = project(cam, p), out = q ? Math.max(Math.abs(q.x), Math.abs(q.y)) - (1 - MARGIN) : 9;
@@ -57,7 +57,7 @@ if (process.argv[1]?.endsWith("check_crash_shot.mjs")) {
   const cuts = D.shots.filter((s) => s.t0 >= tSud - 1e-6 && s.t0 < T.lines.find((l) => l.id === "L07").t - 1e-6);
   const r = evaluate(shot, true);
   if (cuts.length !== 1) r.fail.push(`${cuts.length} shots between "suddenly" and L07: the crash must be one take`);
-  if (Math.abs(shot.t1 - T.lines.find((l) => l.id === "L07").t) > 1e-6) r.fail.push("the take does not run to L07");
+  if (shot.t1 < T.lines.find((l) => l.id === "L07").t - 1e-6) r.fail.push("the take ends before L07: the crash must be one uncut take");   /* it may run longer (v9: through "right where I was sitting") */
   console.log(`one take ${shot.t0.toFixed(2)}-${shot.t1.toFixed(2)} s; worst overshoot past the safe frame (ndc): squirrel ${r.worst.squirrel.toFixed(2)}, bus ${r.worst.bus.toFixed(2)}, shelter ${r.worst.shelter.toFixed(2)}`);
   console.log(r.fail.length ? "FAIL\n  " + [...new Set(r.fail.map((f) => f.replace(/ at [\d.]+ s.*/, "")))].join("\n  ") + "\n  first: " + r.fail[0] : "PASS");
   process.exit(r.fail.length ? 1 : 0);

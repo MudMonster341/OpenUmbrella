@@ -101,6 +101,28 @@ def speech_gaps(plan, audio_dir, floor_db=-45.0):
     return gaps
 
 
+def frame_rgb(video, t, w=108, h=192):
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1", "-vf", f"scale={w}:{h}:flags=area",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+    return np.frombuffer(raw, np.uint8).reshape(h, w, 3).astype(np.float32) if len(raw) == w * h * 3 else None
+
+
+def background_stats(img):
+    """detail and colour variety in the frame's BORDER (side strips above and below the caption band), where the setting shows
+    around any insert. A plain colour or a flat gradient has almost no detail and very few colours (the user, 2026-11-16: 'no
+    background should be only a plain color'). Calibrated: plain-background previews <= 8 colours, world frames >= 14."""
+    h, w, _ = img.shape; m = np.zeros((h, w), bool); cols = np.r_[0:int(0.18 * w), int(0.82 * w):w]
+    for a, b in ((0.10, 0.62), (0.86, 0.98)): m[int(a * h):int(b * h), cols] = True
+    lum = img.mean(2); g = np.abs(np.diff(lum, axis=0))[:, :-1] + np.abs(np.diff(lum, axis=1))[:-1, :]
+    detail = float(g[m[:-1, :-1]].mean())
+    q = (img[m] // 32).astype(int); counts = np.bincount(q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2], minlength=512)
+    return detail, int((counts > 0.01 * m.sum()).sum())
+
+
+def background_ok(detail, colours):
+    return colours >= 11 and detail >= 4.0
+
+
 def picture_jumps(small, fps):
     """times of sudden picture changes, with the caption band and the badge masked (a new word is not a jump)"""
     n = len(small); t = np.arange(n) / fps
@@ -220,6 +242,18 @@ def picture(plan, video, info):
     hot = [c for c in plan["captions"] if c.get("hot") and c["t"] < 3.0]
     check("H5", "The claim lands around 1.2-1.6 s, emphasised", any(0.9 <= c["t"] <= 1.7 for c in hot), ", ".join(f"{c['word']} {c['t']:.2f} s" for c in hot) or "no emphasised word before 3 s", "an emphasised word at 0.9-1.7 s", VIR + " #5", blocker=False)
 
+    plain = []
+    for s in plan["shots"]:
+        samples = []
+        for u in (0.25, 0.5, 0.75):
+            img = frame_rgb(video, s["t0"] + u * (s["t1"] - s["t0"]))
+            if img is not None: samples.append(background_stats(img))
+        if samples:
+            d = sorted(x[0] for x in samples)[len(samples) // 2]; c = sorted(x[1] for x in samples)[len(samples) // 2]
+            if not background_ok(d, c): plain.append(f"shot {s['i']} ({s['kind']}, {s['t0']:.2f} s): {c} colours, detail {d:.1f}")
+    check("V11", "Every shot has a real background (never a plain colour)", not plain, "; ".join(plain[:6]) or "every shot's border shows the world",
+          ">= 11 colours and detail >= 4 in the frame border (median of 3 samples per shot)",
+          "the user 2026-11-16: 'no background should be only a plain color ... the background should be directed first'")
     bad = [f"shot {p['shot']} {p['luma']}" for p in per_shot if not 40 <= p["luma"] <= 175]
     check("V10", "Every shot exposed (night allowed)", not bad, "; ".join(bad) or f"{min(p['luma'] for p in per_shot)}-{max(p['luma'] for p in per_shot)}",
           "mean luma 40-175 per shot", "GOAL.md exposure; 'never flat lighting' (the user 2026-11-14)", blocker=False)

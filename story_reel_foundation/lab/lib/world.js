@@ -4,6 +4,7 @@
    previews); the world just answers "what does the street look like at tw?". */
 import * as THREE from "three";
 import { monoCubic } from "./curve.js";
+import { buildSmoke } from "./smoke.js";
 import { mat, rbox, makePerson, pose } from "./people.js";
 import { asphalt, paving, facade, shelter as buildShelter } from "./detail.js";
 
@@ -228,6 +229,9 @@ export function buildWorld(scene, cfg) {
     frag.forEach((f) => { f.m.visible = hit && !noFrag; if (!hit) return; f.m.position.set(f.p0.x + f.v.x * dt, Math.max(f.sz * 0.5, f.p0.y + f.v.y * dt - 4.9 * dt * dt), f.p0.z + f.v.z * dt); f.m.rotation.set(f.w.x * dt, f.w.y * dt, f.w.z * dt); });
     const ru = clamp01(dt / 0.9); ring.material.opacity = 0;   /* removed: it read as a debug marker (critic, night v2 and v3) */ ring.scale.setScalar(hit ? 0.3 + ru * 4.2 : 0.3);
   });
+
+  const smokeUpdate = buildSmoke(G, bus, cfg);
+  live.push((tw) => smokeUpdate(tw));   /* registered after the bus pose update so it follows the bus */
 
   /* ---- the squirrel: darts off the near pavement across the bus's lane (cfg.squirrel); the driver's reason to swerve ---- */
   if (cfg.squirrel) {

@@ -20,10 +20,11 @@ import autoreview as ar  # noqa: E402
 
 SR = 48000
 fails = []
+ran = []
 
 
 def ok(name, cond, detail):
-    print(f"{'PASS' if cond else 'FAIL'}  {name}: {detail}")
+    ran.append(name); print(f"{'PASS' if cond else 'FAIL'}  {name}: {detail}")
     if not cond: fails.append(name)
 
 
@@ -70,7 +71,18 @@ def main():
     md = np.r_[0, [float(np.abs(still[i] - still[i - 1])[mask].mean()) for i in range(1, 91)]]
     ok("T5 a still opening has no event", md.max() < 25, f"max change {md.max():.1f}")
 
-    print(f"SELFTEST {'PASS' if not fails else 'FAIL'}: {5 + 1 - len(fails) if not fails else len(fails)} {'tests pass' if not fails else 'failed: ' + ', '.join(fails)}")
+    # T6: a plain or gradient background fails V11; a busy one passes
+    yy = np.linspace(0, 1, 192)[:, None, None]
+    grad = np.broadcast_to(np.array([40, 60, 140]) + yy * np.array([30, 40, 60]), (192, 108, 3)).astype(np.float32).copy()
+    grad[60:120, 30:78] = 240                                                                 # a card in the middle: it must not save it
+    d, c = ar.background_stats(grad)
+    rng = np.random.default_rng(7); pal = rng.integers(0, 255, (24, 3))                     # a scene is blocks of colour, not noise
+    busy = np.kron(pal[rng.integers(0, 24, (24, 14))], np.ones((8, 8, 1)))[:192, :108].astype(np.float32)
+    d2, c2 = ar.background_stats(busy)
+    ok("T6 background_stats fails a gradient, passes a busy scene", not ar.background_ok(d, c) and ar.background_ok(d2, c2),
+       f"gradient {c} colours / detail {d:.1f}; busy {c2} colours / detail {d2:.1f}")
+
+    print(f"SELFTEST {'PASS' if not fails else 'FAIL'}: {len(ran) if not fails else len(fails)} {'tests pass' if not fails else 'failed: ' + ', '.join(fails)}")
     return 1 if fails else 0
 
 

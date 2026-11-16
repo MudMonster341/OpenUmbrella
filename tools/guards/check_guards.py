@@ -87,8 +87,44 @@ def g4():
     res("G4", r.returncode == 0, last if r.returncode == 0 else r.stdout.strip()[-600:] + r.stderr.strip()[-300:])
 
 
+def g5():
+    """every ERRORS.md entry from ERR-0014 on names the check that now catches it (the user, 2026-11-16: 'whenever mistakes are
+    made, make pre-check deterministic checks and pipelines to make sure the same mistake is not repeated')"""
+    text = (ROOT / "ERRORS.md").read_text(encoding="utf-8")
+    review = (ROOT / "tools" / "autoreview" / "autoreview.py").read_text(encoding="utf-8") + Path(__file__).read_text(encoding="utf-8")
+    missing, pending, broken = [], [], []
+    for m in re.finditer(r"(?ms)^## ERR-(\d{4})(.*?)(?=^## ERR-|\Z)", text):
+        num, body = int(m.group(1)), m.group(2)
+        if num < 14: continue
+        g = re.search(r"^\*\*Guard:\*\*(.*)$", body, re.M)
+        if not g: missing.append(f"ERR-{num:04d}"); continue
+        line = g.group(1)
+        if "pending" in line.lower(): pending.append(f"ERR-{num:04d}"); continue
+        for cid in re.findall(r"\b([VASCHDG]\d{1,2})\b", line):           # every named check ID must exist in a checker
+            if not re.search(rf"[\"']{cid}[\"']", review): broken.append(f"ERR-{num:04d} names {cid}, which no checker defines")
+        for path in re.findall(r"(tools/[\w/.-]+\.(?:py|mjs)|story_reel_foundation/[\w/.-]+\.mjs)", line):
+            if not (ROOT / path).exists(): broken.append(f"ERR-{num:04d} names {path}, which does not exist")
+    if missing or broken: res("G5", False, "; ".join(missing + broken))
+    elif pending: res("G5", False, "every entry names its guard; pending: " + ", ".join(pending), warn=True)
+    else: res("G5", True, "every error entry from ERR-0014 names an existing check")
+
+
+def g6():
+    """ERR-0018: x.slerpQuaternions(a, b, t) copies a into x first, so x must be neither a nor b"""
+    hits = []
+    for p in ROOT.rglob("*.js"):
+        if SKIP.search(str(p.relative_to(ROOT))): continue
+        text = p.read_text(encoding="utf-8", errors="replace")
+        text = re.sub(r"/\*.*?\*/", lambda c: re.sub(r"[^\n]", " ", c.group(0)), text, flags=re.S)   # comments may quote the bug
+        text = re.sub(r"//[^\n]*", "", text)
+        for m in re.finditer(r"([\w.$]+)\.slerpQuaternions\(\s*([\w.$]+)\s*,\s*([\w.$]+)", text):
+            if m.group(1) in (m.group(2), m.group(3)):
+                hits.append(f"{p.relative_to(ROOT)}:{text.count(chr(10), 0, m.start()) + 1}")
+    res("G6", not hits, "aliased slerpQuaternions at " + ", ".join(hits) if hits else "no quaternion blend writes into its own input")
+
+
 def main():
-    g1(); g2(); g3(); g4()
+    g1(); g2(); g3(); g4(); g5(); g6()
     for gid, st, msg in results:
         print(f"{st}  {gid}  {msg}")
     fails = [r for r in results if r[1] == "FAIL"]

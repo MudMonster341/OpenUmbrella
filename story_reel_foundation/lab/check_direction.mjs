@@ -16,11 +16,13 @@ for (let T = 0; T < D.duration; T += 0.02) {
   const t = D.text, s = shotAt(T);
   let n = at(T, t.captions).length;
   if (s && s.kind === "phone") {
-    n += 1;                                                         /* the number in the phone header */
+    n += 1;                                                         /* the sender's name in the banner / chat header ("ME") */
     if (T >= D.inserts.phone.bubble.t) n += words(D.inserts.phone.bubble.text);
   } else {
     const st = [...t.stamp].reverse().find((x) => T >= x.t);
-    if (st) { n += 1; if (st.delta && T - st.t < 1.0) n += 1; }
+    if (st) { n += 3; if (st.delta && T - st.t < 1.0) n += 1; }   /* the badge: the number + "DAYS LEFT" (2026-11-17 redesign) */
+    const ck = [...(t.clock || [])].reverse().find((x) => T >= x[0]);
+    if (ck) n += words(ck[1]);                                       /* the story clock on the badge's right, when used */
   }
   at(T, t.banner).forEach((b) => (n += words(b.text)));
   if (n > worst) { worst = n; worstT = T; }

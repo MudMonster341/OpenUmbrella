@@ -15,7 +15,7 @@ const pre = K.filter((k) => k[0] <= LOC + 1e-6);
 const pose = (t) => { const [x, z, yaw, y] = monoCubic(pre, t - IMP + LOC); return { x, z, yaw, y }; };
 const world = (p, lx, lz) => ({ x: p.x + S * (lx * Math.cos(p.yaw) + lz * Math.sin(p.yaw)), z: p.z + S * (-lx * Math.sin(p.yaw) + lz * Math.cos(p.yaw)) });
 const ROOF = { x0: 0.2 - 1.75, x1: 0.2 + 1.75, zEdge: -1.3 };
-const tS = W("L06", "SUDDENLY"), tK = W("L06", "KERB"), tA = W("L05", "ARRIVES");
+const tS = W("L06", "SUDDENLY"), tK = W("L07", "SWERVES"), tA = W("L05", "PULLS");
 let vMin = 99, vMax = 0;
 
 let fail = [], prevX = null, prevV = 0, wheelOn = null;
@@ -30,6 +30,8 @@ for (let f = Math.floor(Math.min(tS, tA) * 60) - 30; f <= Math.round(IMP * 60); 
   if (f % 2 === 0) console.log(`${t.toFixed(3)}  ${p.x.toFixed(2).padStart(6)}  ${v.toFixed(2).padStart(5)}  ${wh.z.toFixed(2).padStart(6)}  ${co.x.toFixed(2).padStart(6)}  ${co.z.toFixed(2).padStart(6)}  ${p.y.toFixed(2)}`);
   prevX = p.x; if (t > tS) prevV = v;
 }
+{ const K0 = pre[0][0] + IMP - LOC; let pv = null;                   /* the user, 2026-11-16: the bus must not slow down at ANY point before the hit */
+  for (let t = K0 + 0.05; t < IMP - 1 / 60; t += 1 / 60) { const v = (pose(t + 1 / 60).x - pose(t).x) * 60; if (pv !== null && v < pv - 0.08) { fail.push(`the bus slows at ${t.toFixed(2)} s (${pv.toFixed(2)} -> ${v.toFixed(2)} m/s)`); break; } pv = v; } }
 if (vMin < 4 || vMax > 9) fail.push(`from "arrives" to the hit the bus runs ${vMin.toFixed(2)}-${vMax.toFixed(2)} m/s, not 4-9: it stops and lurches`);
 console.log(`speed from "arrives" to the hit: ${vMin.toFixed(2)}-${vMax.toFixed(2)} m/s`);
 if (wheelOn === null || wheelOn < tK - 0.1 || wheelOn > T.prehit[0] + 0.1) fail.push(`the wheel reaches the kerb at ${wheelOn?.toFixed(3)} s, not at "kerb" (${tK})`);
