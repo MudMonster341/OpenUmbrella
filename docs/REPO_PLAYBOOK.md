@@ -15,14 +15,14 @@ implementations are not.
 
 | Job | Tool | Where |
 |---|---|---|
-| Pipeline, stages, artifacts, approval gates | **OpenMontage** | `OpenMontage/` |
+| Pipeline, stages, artifacts, approval gates | **OpenMontage** | `external_tools/editing/OpenMontage/` |
 | Render HTML/CSS/GSAP/Three.js → MP4 | **HyperFrames** | `npx hyperframes` |
 | Continuous camera, beat sheets | **onecam** (ours) | `engine/onecam/` |
 | Quality gate on the finished file | **filmcheck** (ours) | `tools/filmcheck/` |
 | Narration, voice design, dubbing | **VoiceStudio** | installed app + CLI |
-| Reference: 3D lighting, continuity, rhythm | **onetake** | `vendor/onetake/` |
-| Reference: 101 film styles, audio pipeline | **lemo-opuscar** | `vendor/lemo-opuscar/` |
-| Reference: character acting, timing, "alive" | **ClaudeAnimationBase** | `vendor/ClaudeAnimationBase/` |
+| Reference: 3D lighting, continuity, rhythm | **onetake** | `external_tools/motion/onetake/` |
+| Reference: 101 film styles, audio pipeline | **lemo-opuscar** | `external_tools/motion/lemo-opuscar/` |
+| Reference: character acting, timing, "alive" | **ClaudeAnimationBase** | `external_tools/motion/ClaudeAnimationBase/` |
 
 ---
 
@@ -51,7 +51,11 @@ C:\Users\Mustafa\AppData\Local\Programs\VoiceStudio\resources\cli\voicestudio.ex
 
 Add `--json` to anything for machine-readable output, and `--url` to drive a backend elsewhere.
 
-> **⚠️ One manual step remains.** `voicestudio models list` returns *"VoiceStudio has not finished
+> **✅ Resolved 2026-11-13 — setup finished by the user and `speak` verified** (24 kHz mono WAV;
+> ~15× slower than real time on this CPU; no word timings; the OmniVoice model is flagged
+> CC-BY-NC). Details: `market_research_and_intelligence/05-audio.md` §2a. The note below is history.
+>
+> **⚠️ (historical) One manual step remained.** `voicestudio models list` returns *"VoiceStudio has not finished
 > setup. Open VoiceStudio, complete setup, then run this command again."* First-run setup and model
 > selection are GUI steps. Deliberately not automated: choosing a model means a multi-gigabyte
 > download, and that is the user's call, not something to do silently.
@@ -70,7 +74,7 @@ Piper stays installed as the draft fallback.
 
 ## onetake — reference for 3D look and continuity
 
-`vendor/onetake/` · PolyForm Noncommercial · **reference only, never shipped**
+`external_tools/motion/onetake/` · PolyForm Noncommercial · **reference only, never shipped**
 
 | File | What we take from it |
 |---|---|
@@ -89,7 +93,7 @@ a craft reference for everything *around* the camera.
 
 ## lemo-opuscar — reference for style and the audio pipeline
 
-`vendor/lemo-opuscar/` · code MIT, **docs and style prompts CC BY-NC 4.0** · reference only
+`external_tools/motion/lemo-opuscar/` · code MIT, **docs and style prompts CC BY-NC 4.0** · reference only
 
 101 styles in `styles/`, each a `STYLE.md` plus a demo film, all made in code with no video model.
 
@@ -110,7 +114,7 @@ Browsing this to understand what good looks like is the point; lifting a prompt 
 
 ## ClaudeAnimationBase — reference for character and timing
 
-`vendor/ClaudeAnimationBase/` · MIT · permissive, so it *may* be used directly
+`external_tools/motion/ClaudeAnimationBase/` · MIT · permissive, so it *may* be used directly
 
 The craft here is the best of the three, and it is MIT, so unlike the other two we are free to use
 it as well as learn from it.

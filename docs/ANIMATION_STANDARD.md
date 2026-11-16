@@ -120,7 +120,7 @@ minutes per draft, not seconds, and render drafts at 30fps.
 
 ## Where this came from
 
-Studied from the reference repos in `vendor/`, expressed here as our own standard — see
+Studied from the reference repos in `external_tools/motion/`, expressed here as our own standard — see
 [ADR 0008](../decisions/0008-learn-styles-then-author-our-own.md). No prompt text or source was
 copied. The 3D lighting and performance findings come from onetake's 3D reference; the character,
 timing and "alive" principles from ClaudeAnimationBase's animation guide; the one-timeline and

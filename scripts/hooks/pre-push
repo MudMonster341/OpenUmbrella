@@ -1,0 +1,13 @@
+#!/bin/sh
+# pre-push — the only branch that may reach GitHub is code-only, built by tools/publish/publish_code.py.
+# Why: the repo is public and every other branch holds our stories (the user, 2026-11-16: "push code, keep story local").
+# Install: cp scripts/hooks/pre-push .git/hooks/pre-push   (scripts/install_hooks.sh does it)
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/code-only) ;;
+    *) echo "pre-push: REFUSED a push to $remote_ref. Only refs/heads/code-only may be pushed (it carries code, never stories)." >&2
+       echo "pre-push: publish with:  python tools/publish/publish_code.py" >&2
+       exit 1 ;;
+  esac
+done
+exit 0

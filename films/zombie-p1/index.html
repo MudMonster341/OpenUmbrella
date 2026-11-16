@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en" data-resolution="portrait">
+<html lang="en" data-resolution="portrait" data-composition-variables='[
+      {"id":"mbSamples","type":"number","label":"Motion blur samples","default":1},
+      {"id":"mbShutter","type":"number","label":"Shutter open seconds","default":0.016667}
+    ]'>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1080, height=1920" />
@@ -27,18 +30,35 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="35.5" data-width="1080" data-height="1920">
-      <canvas id="three-layer" class="clip" data-start="0" data-duration="35.5" data-track-index="0" data-layout-allow-overflow></canvas>
-      <div id="vignette" class="clip" data-start="0" data-duration="35.5" data-track-index="1"></div>
+    <div id="root" data-composition-id="main" data-fps="30" data-start="0" data-duration="35.23" data-width="1080" data-height="1920">
+      <canvas id="three-layer" class="clip" data-start="0" data-duration="35.23" data-track-index="0" data-layout-allow-overflow></canvas>
+      <div id="vignette" class="clip" data-start="0" data-duration="35.23" data-track-index="1"></div>
     </div>
 
     <script type="module">
       import * as THREE from "three";
       import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-      import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
       import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+      import { TexturePass } from "three/addons/postprocessing/TexturePass.js";
       import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
       import { OneCam } from "./lib/onecam.js";
+      import { ShutterBlur } from "./lib/motionblur.js";
+
+      /* onecam C1 — motion blur. Drafts render with mbSamples 1 (off); a
+         final passes it on the CLI, which is the draft/final split C2 asks
+         for. Deterministic by construction: every sub-sample is a pure
+         function of time, so the same flags give the same frames.
+            draft : npm run render
+            final : npx hyperframes render --fps 60 \
+                      --variables '{"mbSamples":4,"mbShutter":0.00833}'
+         mbShutter is the open time in SECONDS, not a frame fraction, because
+         the composition cannot see the --fps the CLI was given. A 180-degree
+         shutter is 1/(2*fps): 0.01667 at 30fps, 0.00833 at 60. */
+      const VARS = (() => {
+        try { return window.__hyperframes?.getVariables?.() ?? {}; } catch { return {}; }
+      })();
+      const MB_SAMPLES = Math.max(1, Math.min(8, Math.round(Number(VARS.mbSamples ?? 1)) || 1));
+      const MB_SHUTTER = Math.max(0, Number(VARS.mbShutter ?? 1 / 60));
 
       /* Authoring source of truth: engine/onecam/zombie-p1.beats.json.
          Inlined because the Three adapter forbids fetching at seek time. */
@@ -59,9 +79,35 @@
              reads as cinema, where fov 40 at 1m reads as macro. */
           { name: "window",    position: [0.1, 1.8, 1.7],   lookAt: [0, 1.7, -2.5],    fov: 40, hold: 4.0 },
           { name: "find-them", position: [-0.2, 1.7, 3.0],  lookAt: [0, 1.15, -0.1],   fov: 58, hold: 4.5 },
-          { name: "shelf",     position: [1.3, 1.7, 1.9],   lookAt: [3.4, 1.3, -0.9],  fov: 42, hold: 5.0 },
-          { name: "hands",     position: [0.15, 1.9, 1.9],  lookAt: [0.05, 0.85, -0.2],fov: 40, hold: 5.5 },
-          { name: "the-look",  position: [0.35, 1.45, 1.25],lookAt: [0.75, 1.3, 0.05], fov: 28, hold: 5.5 },
+          /* RE-STAGED. Was position [1.3,1.7,1.9] lookAt [3.4,1.3,-0.9] fov 42
+             — a 3.52 m look into the unlit far corner. Now 1.80 m onto the
+             relocated shelf unit on a longer lens: the cans go from ~63 px to
+             ~160 px wide, and because the unit is 1.8 m out while the wall
+             behind it is 3.9 m, the hold drift finally produces parallax. */
+          { name: "shelf",     position: [0.11, 1.44, 2.05],lookAt: [1.98, 1.20, 0.56], fov: 34, hold: 5.0 },
+          /* RE-FRAMED. Was position [0.15,1.9,1.9] lookAt [0.05,0.85,-0.2]
+             fov 40, which at 2.35 m covered only x = -0.33..0.63 — so BOTH
+             figures (x = -0.78 and +0.75) fell outside the frame and READ 4
+             played as a can sliding across an empty table by itself.
+             A symmetric two-shot of figures 1.53 m apart needs ~80 deg of
+             vertical lens at this distance, and wide lenses are what made
+             the Paris film look cheap. So this favours the receiving side
+             instead: the human's torso and arm hold the left of frame, the
+             can arrives from Claude's side off-frame right, and the giving
+             is implied. READ 5 is where Claude is seen, which is the brief's
+             own point — the reaction is the read, not the act. */
+          { name: "hands",     position: [-0.30, 1.58, 1.80],lookAt: [-0.42, 0.95, -0.10], fov: 44, hold: 5.5 },
+          /* RE-AIMED. Claude faces -x (toward the human) and during this beat
+             the head yaws a further -0.5 rad on top of that, so from the old
+             camera at [0.35,1.45,1.25] the face had turned 67 deg away and
+             the shot was the lit side of a featureless skull. The committed
+             2026-11-13 render has the identical defect, so this predates the
+             lighting work — but READ 5 is the film, per BRIEF.md, and a
+             close-up of the back of a head is not a reaction.
+             The camera now sits on the axis Claude's face actually points
+             down when he looks at the human, offset 31 deg for a 3/4 view,
+             so the lamp's hot side becomes modelling on a visible face. */
+          { name: "the-look",  position: [-0.14, 1.33, 0.84],lookAt: [0.75, 1.30, 0.12], fov: 30, hold: 5.5 },
           { name: "the-turn",  position: [-0.2, 1.65, 2.6], lookAt: [0.1, 1.35, -1.0], fov: 52, hold: 3.5 },
         ],
       };
@@ -79,7 +125,12 @@
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.toneMapping = THREE.NeutralToneMapping ?? THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.15;
+      /* 1.15 was set while the lamp was silently running at 9.5 cd instead of
+         LAMP_CD (ERR-0005). With the practical at its intended 34 cd the film
+         measured YAVG 96 on the hands beat — daylight, not a boarded-up room
+         at night. Exposure is the global control; the hemisphere below is the
+         shadow-floor control. They are tuned separately and on purpose. */
+      renderer.toneMappingExposure = 1.0;
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x05060a);
@@ -155,9 +206,36 @@
       scene.add(shape);
 
       /* ---------------- shelf and cans ---------------- */
+      /* RE-STAGED. The shelf was two bare planks bolted to the right wall at
+         x = 3.6 — 3.65 m from the only light in the room, which made READ 3
+         the darkest frame in the film (97.9% of its pixels under 10% luma,
+         against blackdetect's 98% threshold) and the weakest shot in it.
+         Four things were wrong and all four are staging, not lighting:
+
+           1. Distance. Irradiance is I/r^2, so a corner 3.65 m from a
+              practical gets 1/18th the light of the table at 0.85 m. No
+              intensity value fixes that; the shelf had to move.
+           2. Scale. Cans 3.5 m away at fov 42 were ~63 px wide. READ 3 is
+              "it is countable" — 63 px is not countable, it is a texture.
+           3. Emptiness does not read against a big container. Three cans on
+              a 1.7 m plank reads as "we cannot see the food", not as "there
+              is almost no food". A SMALL shelf, visibly part-empty, is what
+              says the thing the brief asks this beat to say.
+           4. No parallax. Shelf and back wall were both ~3.5 m out, so the
+              camera's lateral drift moved near and far by the same amount
+              and the frame did not change. That is the other half of M1.
+
+         Now a free-standing unit beside the table: 2.27 m from the lamp
+         (2.6x the light), a back panel so empty shelves read as empty rather
+         than as holes, and near enough that the wall behind it parallaxes. */
       const SHELF = mat(0x55473a, 0.95);
-      box(0.46, 0.06, 1.7, SHELF, 3.6, 1.34, -0.9);
-      box(0.46, 0.06, 1.7, SHELF, 3.6, 0.86, -0.9);
+      const SX = 2.0, SZ = 0.55;            // unit centre
+      const SW = 0.95, SD = 0.40;           // length along z, depth along x
+      const PLANKS = [1.30, 0.92, 0.54];
+      for (const py of PLANKS) box(SD, 0.045, SW, SHELF, SX, py, SZ);
+      box(SD, 0.045, SW, SHELF, SX, 1.52, SZ);                       // top cap
+      for (const s of [-1, 1]) box(SD, 1.56, 0.05, SHELF, SX, 0.76, SZ + s * (SW / 2));
+      box(0.03, 1.56, SW, mat(0x463a30, 0.96), SX + SD / 2, 0.76, SZ);  // back panel
 
       const CAN_BODY = [mat(0x8a8f94, 0.45, 0.55), mat(0x7d8287, 0.5, 0.5), mat(0x93979b, 0.4, 0.6)];
       const CAN_LABEL = [mat(0x7a4a3a, 0.9), mat(0x5a6340, 0.9), mat(0x6b5a3a, 0.9)];
@@ -172,8 +250,20 @@
         g.rotation.y = rand() * 3;
         scene.add(g); return g;
       }
-      /* three left on the shelf — READ 3 depends on them being countable */
-      can(3.56, 1.37, -1.45, 0); can(3.64, 1.37, -1.26, 1); can(3.54, 1.37, -0.42, 2);
+      /* Three left on the shelf — READ 3 depends on them being countable, so
+         they are spread with clear gaps rather than clustered. Top plank
+         surface is 1.30 + 0.045/2. */
+      const SPY = 1.3225;
+      can(SX - 0.02, SPY, SZ - 0.30, 0);
+      can(SX + 0.03, SPY, SZ - 0.04, 1);
+      can(SX - 0.01, SPY, SZ + 0.28, 2);
+
+      /* The empty shelves need evidence, not just absence: a can already
+         eaten and knocked on its side says "this is what is left" far more
+         clearly than a bare plank does. */
+      const tipped = can(SX + 0.04, 0.9425, SZ - 0.22, 2);
+      tipped.rotation.z = Math.PI / 2;
+      tipped.position.y = 0.9425 + 0.042;
 
       /* ---------------- table, lamp, the two piles ---------------- */
       const TABLE = mat(0x4f4134, 0.92);
@@ -186,18 +276,52 @@
       /* Back-centre of the table. At (0.52, 0.95, -0.05) the bulb sat exactly
          on the camera-to-Claude axis for READ 5 and blew the whole frame out
          with bloom. A practical must never be on the line to the subject. */
-      const lampPos = new THREE.Vector3(0, 0.95, -0.44);
+      /* HUNG, not stood. On the table at y = 0.95 the bulb was 0.17 m above
+         the table top, so irradiance there was I/0.03 = ~500x the constant
+         while the shelf 2.3 m away got ~3x it. A 170:1 range inside one shot
+         cannot be exposed: every value that lit the room clipped the table
+         to a flat white sheet with no falloff and no label detail left on
+         the cans — which is exactly what the hands beat was doing.
+         Raising it to 1.55 m drops the near/far range to about 8:1, which a
+         tone mapper can actually hold, and a lamp hung over the table is
+         both period-correct for the room and better light on two faces. */
+      const lampPos = new THREE.Vector3(0, 1.55, -0.44);
       const bulb = new THREE.Mesh(
         new THREE.SphereGeometry(0.055, 16, 12),
         new THREE.MeshBasicMaterial({ color: 0xffd9a0 })
       );
       bulb.position.copy(lampPos); scene.add(bulb);
-      box(0.1, 0.19, 0.1, mat(0x2e2a26, 0.8), lampPos.x, 0.86, lampPos.z);
+      /* cord to the ceiling, and a shade that keeps the ceiling dark */
+      const cord = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 3.0 - lampPos.y, 6),
+        mat(0x1d1a17, 0.9)
+      );
+      cord.position.set(lampPos.x, (3.0 + lampPos.y) / 2, lampPos.z);
+      scene.add(cord);
+      const shade = new THREE.Mesh(
+        new THREE.ConeGeometry(0.17, 0.13, 20, 1, true),
+        new THREE.MeshStandardMaterial({ color: 0x33302b, roughness: 0.85, side: THREE.DoubleSide })
+      );
+      shade.position.set(lampPos.x, lampPos.y + 0.095, lampPos.z);
+      shade.castShadow = true;
+      scene.add(shade);
 
-      /* 9.5 cd with inverse-square falloff lit roughly a 1 m bubble and left
-         four of the six reads black. Irradiance is I/r^2, so reaching the
-         shelf at 1.5 m needs several times that. */
-      const LAMP_CD = 34;
+      /* MEASURED, not reasoned. The previous value of 34 was derived from
+         "irradiance is I/r^2, so reaching the shelf needs several times 9.5"
+         — sound arithmetic, wrong conclusion, and it was never once tested
+         because ERR-0005 meant the renderer kept using 9.5 regardless.
+         Running it for the first time blew the near beats out completely:
+         the hands beat measured YAVG 91/255 with the table a flat white
+         sheet and no label detail left on any can.
+
+         The error was treating the practical as the far-field control. It
+         cannot be: scaling one point light scales the near table and the far
+         shelf together, and the table is 0.3 m from the bulb while the shelf
+         is 2.3 m, so the near surface always clips first. The practical sets
+         the KEY, the hemisphere below sets the FILL, and the shelf was fixed
+         by moving it, not by lighting it harder. 15 cd exposes the table and
+         the piles correctly, which is what this light is actually for. */
+      const LAMP_CD = 15;
       const lamp = new THREE.PointLight(0xffb066, LAMP_CD, 0, 2);
       lamp.position.copy(lampPos);
       lamp.castShadow = true;
@@ -213,20 +337,31 @@
       moon.target.position.set(0, 1.3, 0);
       moon.castShadow = true;
       moon.shadow.mapSize.set(2048, 2048);
-      moon.shadow.camera.near = 1; moon.shadow.camera.far = 14;
-      moon.shadow.camera.left = -3; moon.shadow.camera.right = 3;
-      moon.shadow.camera.top = 3; moon.shadow.camera.bottom = -3;
+      /* The frustum must cover the whole room. At +-3 the shelf at x = 3.6 sat
+         OUTSIDE it, and a three.js shadow lookup outside the frustum returns
+         "lit" — so the right third of the room received cold directional light
+         straight through a solid back wall. That is why the shelf planks read
+         blue while every other surface in the room reads warm. Room spans
+         x,z = -4.2..4.2, y = 0..3.1, so +-5 covers it with margin. */
+      moon.shadow.camera.near = 1; moon.shadow.camera.far = 16;
+      moon.shadow.camera.left = -5; moon.shadow.camera.right = 5;
+      moon.shadow.camera.top = 5; moon.shadow.camera.bottom = -5;
       moon.shadow.bias = -0.0015;
       scene.add(moon, moon.target);
 
       /* a weak warm bounce, no shadow, so the far corners are dark rather
          than absent — unlit black reads as a hole in the frame, not as night */
-      const bounce = new THREE.PointLight(0xc98a56, 4.5, 0, 2);
+      const bounce = new THREE.PointLight(0xc98a56, 7.0, 0, 2);
       bounce.position.set(0, 2.5, 0.2);
       scene.add(bounce);
 
-      /* barely-there ambient so the shadows are not pure black */
-      scene.add(new THREE.HemisphereLight(0x2d3a48, 0x0c0c0f, 0.45));
+      /* The shadow floor, and the only light in this scene that does NOT fall
+         off with distance. A single practical with decay 2 makes everything
+         past ~1.5 m a void, which is not what a real room does — real bounce
+         fills the corners. This is that bounce, and it is the lever that
+         lifts a far surface without touching the lamp's own highlights.
+         0.45 was far too low to deliver the intent written above it. */
+      scene.add(new THREE.HemisphereLight(0x2d3a48, 0x0c0c0f, 1.8));
 
       /* two piles. The human's is larger, and that is the story. */
       const TT = 0.7775; // table top
@@ -251,18 +386,73 @@
         head.position.y = 1.57 * u;
         head.scale.set(1, 1.08, 0.94);
 
-        /* Eyes. A featureless sphere reads as a mannequin the moment it is
-           big in frame, and READ 5 is a close-up. Two dark spheres and a brow
-           is all a stylised character needs to be looked at. */
-        const dark = new THREE.MeshStandardMaterial({ color: 0x15100e, roughness: 1.0 });
-        const eye = (s) => {
-          const e = new THREE.Mesh(new THREE.SphereGeometry(0.0155 * u, 10, 8), dark);
-          e.position.set(s * 0.038 * u, 0.022 * u, 0.094 * u);
-          return e;
-        };
-        /* Eyes only. Brows as separate geometry caught the lamp and read as
-           two bright slabs floating on the face. */
-        head.add(eye(-1), eye(1));
+        /* ---------------- face ----------------
+           Two dark spheres on a sphere is a MASCOT, and READ 5 is a close-up
+           of a reaction — BRIEF.md calls that beat the film. What makes a
+           stylised face read is not detail, it is parts that MOVE: a lid, a
+           brow and a mouth give anticipation, action and hold, which is what
+           acting is per ANIMATION_STANDARD. Detail would also fight the
+           low-poly look; four small moving parts do not.
+
+           The brow is the skin colour multiplied DOWN and sunk almost flush,
+           so it reads as a crease. An earlier pass built brows as separate
+           geometry, which caught the lamp and read as two bright slabs
+           floating on the face. A crease is a shadow — it has to be built as
+           one, not lit as one. */
+        const c = new THREE.Color(colour);
+        const browMat = new THREE.MeshStandardMaterial({
+          color: c.clone().multiplyScalar(0.30), roughness: 1.0,
+        });
+        const socketMat = new THREE.MeshStandardMaterial({
+          color: c.clone().multiplyScalar(0.60), roughness: 1.0,
+        });
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x120d0b, roughness: 1.0 });
+
+        const eyes = [];
+        for (const s of [-1, 1]) {
+          const e = new THREE.Group();
+          e.position.set(s * 0.038 * u, 0.020 * u, 0);
+
+          /* The socket is what stops the eye reading as a sticker: it gives
+             the dark shape somewhere to sit instead of lying on the surface. */
+          const socket = new THREE.Mesh(new THREE.SphereGeometry(0.0225 * u, 14, 10), socketMat);
+          socket.scale.set(1, 0.74, 0.34);
+          socket.position.z = 0.0905 * u;
+
+          /* Almond, not a disc. A perfect circle is the single biggest reason
+             the old face read as a toy. */
+          const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0168 * u, 14, 10), eyeMat);
+          ball.scale.set(1, 0.70, 0.52);
+          ball.position.z = 0.0945 * u;
+
+          /* The lid slides DOWN to close rather than rotating. On a curved
+             head a rotating lid either clips into the skull or floats off it;
+             sliding stays on the surface at every opening. */
+          const lid = new THREE.Mesh(new THREE.SphereGeometry(0.0205 * u, 14, 10), skin);
+          lid.scale.set(1.08, 0.80, 0.42);
+          lid.position.set(0, 0.026 * u, 0.0975 * u);
+
+          const brow = new THREE.Mesh(new THREE.BoxGeometry(0.046 * u, 0.0082 * u, 0.010 * u), browMat);
+          brow.position.set(0, 0.050 * u, 0.0885 * u);
+          brow.rotation.z = s * -0.10;
+
+          e.add(socket, ball, lid, brow);
+          e.userData = {
+            lid, brow, side: s,
+            lidOpen: lid.position.y, browRest: brow.position.y, browTilt: brow.rotation.z,
+          };
+          eyes.push(e);
+          head.add(e);
+        }
+
+        /* Barely there, and that is the point — this character says nothing
+           in READ 5. A mouth that can only compress still carries the beat. */
+        const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.016 * u, 12, 8), browMat);
+        mouth.scale.set(1.25, 0.26, 0.34);
+        mouth.position.set(0, -0.036 * u, 0.0935 * u);
+        head.add(mouth);
+
+        const faceRig = { eyeL: eyes[0], eyeR: eyes[1], mouth, u };
 
         const arm = (side) => {
           const a = new THREE.Group();
@@ -286,8 +476,34 @@
         g.position.set(x, 0, z);
         g.rotation.y = facing;
         scene.add(g);
-        g.userData = { head, armL, armR, torso, u };
+        g.userData = { head, armL, armR, torso, u, face: faceRig };
         return g;
+      }
+
+      /* Drive a face. `lid` 0 = wide open, 1 = shut. `brow` is signed: up is
+         surprise, down is a frown. `press` compresses the mouth — the "says
+         nothing" shape. Everything is a position or scale offset from the
+         rest pose, so the values compose and nothing snaps. */
+      function setFace(fig, { lid = 0.12, brow = 0, press = 0 } = {}) {
+        const f = fig.userData.face;
+        const u = f.u;
+        for (const e of [f.eyeL, f.eyeR]) {
+          const d = e.userData;
+          d.lid.position.y = d.lidOpen - lid * 0.026 * u;
+          d.brow.position.y = d.browRest + brow * 0.016 * u;
+          /* The inner end of the brow drops on a frown and lifts on surprise.
+             That asymmetry is most of what reads as an expression. */
+          d.brow.rotation.z = d.browTilt + d.side * -brow * 0.22;
+        }
+        f.mouth.scale.set(1.25 - press * 0.22, 0.26 + press * 0.10, 0.34);
+      }
+
+      /* Deterministic blink. A character that never blinks is dead, and
+         Math.random is forbidden by the render contract anyway. Two figures
+         on different phases so they never blink in unison. */
+      function blinkAt(time, phase) {
+        const p = (time * 0.2 + phase) % 1;
+        return p > 0.955 ? Math.sin(((p - 0.955) / 0.045) * Math.PI) : 0;
       }
 
       /* Distinct silhouettes: different height, different posture. In a
@@ -298,16 +514,33 @@
          READ 5 saw the BACK of Claude's head — the reaction that is the whole
          film was pointing away from camera. */
       const human = figure({ height: 1.78, colour: 0x8a8278, x: -0.78, z: 0.22, facing: 1.62 });
-      const claude = figure({ height: 1.46, colour: 0xe08a63, x: 0.75, z: 0.12, facing: -1.45 });
+      /* Albedo, not brand colour. #d97757 is what Claude must LOOK like on
+         screen; 0xe08a63 was close to that as a raw material value, which
+         meant a 0.88 red reflectance standing 0.97 m from the key — radiance
+         ~4.5, washed to a flat white mask in the READ 5 close-up with every
+         bit of form gone. Halving the albedo lets the lamp bring him UP to
+         the brief's orange instead of straight past it. */
+      const claude = figure({ height: 1.46, colour: 0x8a4a33, x: 0.75, z: 0.12, facing: -1.45 });
       human.userData.armR.rotation.x = -0.55;
       human.userData.armL.rotation.x = -0.2;
       claude.userData.armL.rotation.x = -0.42;
       claude.userData.armR.rotation.x = -0.15;
 
       /* ---------------- post ---------------- */
+      /* The scene is no longer rendered by a RenderPass. It is rendered
+         MB_SAMPLES times per frame into rtAccum, averaged there, and that
+         average is what enters the post chain — so bloom and tone mapping
+         see the blurred image rather than blurring a bloomed one.
+         Half-float targets: accumulating 4 exposures of an HDR scene in 8
+         bits would band badly and clip the lamp long before OutputPass gets
+         a chance to roll it off. */
+      const blur = new ShutterBlur(renderer, {
+        width: W, height: H, samples: MB_SAMPLES, shutter: MB_SHUTTER,
+      });
+
       const composer = new EffectComposer(renderer);
       composer.setSize(W, H);
-      composer.addPass(new RenderPass(scene, camera));
+      composer.addPass(new TexturePass(blur.texture));
       const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.42, 0.55, 0.88);
       composer.addPass(bloom);
       composer.addPass(new OutputPass());
@@ -316,7 +549,10 @@
       const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
       const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
-      function renderAt(time) {
+      /* Everything that is a function of time lives here, so a motion-blur
+         sub-sample can re-pose the whole scene — camera, characters, the
+         moving can and the lamp flicker all blur, not just the camera. */
+      function poseAt(time) {
         const frame = time * SHEET.fps;
         cam.apply(camera, frame);
         const b = cam.beatAt(frame) ?? { index: 0, phase: "hold", local: 0 };
@@ -327,6 +563,13 @@
           f.userData.torso.position.y = f.userData.u * 1.2 + Math.sin(time * 1.15 + ph) * 0.004;
           f.userData.head.position.y = f.userData.u * 1.57 + Math.sin(time * 1.15 + ph) * 0.005;
         }
+
+        /* Faces start every frame at a neutral resting pose plus a blink, so
+           the beat blocks below only have to state what is DIFFERENT. Without
+           this reset an expression set on one beat would persist into the
+           next, which is exactly how a face starts looking mask-like. */
+        setFace(human, { lid: 0.16 + blinkAt(time, 0.0) * 0.84, brow: -0.06 });
+        setFace(claude, { lid: 0.12 + blinkAt(time, 0.47) * 0.88, brow: 0 });
 
         /* READ 1 — the shape crosses the window once, during beat 0's hold */
         if (b.index === 0 && b.phase === "hold") {
@@ -353,9 +596,32 @@
            The reaction IS the read, so it gets the time. */
         if (b.index === 4 && b.phase === "hold") {
           const l = b.local;
+          /* Yaw was -0.5 * toHuman, which overshot the human by 25 deg and
+             swung the face past the camera into profile. The human sits at
+             yaw -1.505 from Claude and his base facing is -1.45, so looking
+             at the human is a yaw of about -0.06, not -0.5. The glance is
+             carried by the PITCH lift (down at the piles, up to the face),
+             which is what the movement actually is. */
           const toHuman = clamp01((l - 0.28) / 0.22) - clamp01((l - 0.68) / 0.24);
-          claude.userData.head.rotation.y = -0.5 * toHuman;
+          claude.userData.head.rotation.y = 0.12 - 0.18 * toHuman;
           claude.userData.head.rotation.x = 0.26 - 0.3 * toHuman;
+
+          /* The reaction, which is the read. Three shapes, not one:
+               down at the piles  — lids low, brow flat, mouth neutral
+               up at the human    — lids open, brow lifts: he has noticed
+               back down          — lids settle, brow drops, mouth presses:
+                                    he has decided to say nothing
+             The last shape is the film's ending and it has to be the one
+             that holds longest, so it is keyed off the FALL of toHuman
+             rather than sharing its curve. */
+          const settle = clamp01((l - 0.74) / 0.22);
+          setFace(claude, {
+            lid: 0.34 - 0.26 * toHuman + 0.20 * settle + blinkAt(time, 0.47) * 0.7,
+            brow: 0.55 * toHuman - 0.75 * settle,
+            press: 0.25 * toHuman + 0.75 * settle,
+          });
+          /* The human never looks back. That is why Claude says nothing. */
+          setFace(human, { lid: 0.30 + blinkAt(time, 0.0) * 0.7, brow: -0.1 });
         }
 
         /* READ 6 — both heads turn to the window. The film ends on the turn. */
@@ -365,13 +631,28 @@
           claude.userData.head.rotation.x = 0.1 * (1 - p);
           human.userData.head.rotation.y = 0.62 * p;
           claude.rotation.y = -Math.PI * 0.46 - 0.22 * p;
+
+          /* Both faces snap open on the sound outside. This is the one beat
+             where an expression is ALLOWED to arrive fast — it is a startle,
+             and a startle that eases in is not a startle. The brow leads the
+             lids by a hair, which is the order a real one happens in. */
+          const alarm = ease(clamp01((b.local - 0.10) / 0.16));
+          const lidPop = ease(clamp01((b.local - 0.13) / 0.14));
+          setFace(claude, { lid: 0.12 - 0.12 * lidPop, brow: 0.9 * alarm, press: 0.2 * alarm });
+          setFace(human, { lid: 0.16 - 0.16 * lidPop, brow: 0.8 * alarm, press: 0.15 * alarm });
         }
 
         /* the lamp is a flame, not a bulb — seeded flicker, deterministic */
+        /* ERR-0005: this line read `9.5 * fl` and silently overrode LAMP_CD
+           every frame, so the 34 cd fix 170 lines up never once took effect.
+           The flicker must scale the constant, never restate its value. */
         const fl = 0.93 + Math.sin(time * 11.3) * 0.035 + Math.sin(time * 6.7 + 1.1) * 0.028;
-        lamp.intensity = 9.5 * fl;
+        lamp.intensity = LAMP_CD * fl;
         bulb.material.color.setRGB(1 * fl, 0.85 * fl, 0.63 * fl);
+      }
 
+      function renderAt(time) {
+        blur.accumulate(scene, camera, poseAt, time);
         composer.render();
       }
 

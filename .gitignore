@@ -22,6 +22,16 @@ node_modules/
 # HyperFrames working artifacts (snapshots, check reports, renders, state)
 films/*/.hyperframes/
 films/*/node_modules/
+story_reel_foundation/lab/.hyperframes/
+story_reel_foundation/lab/snaps*/
+story_reel_foundation/lab/node_modules/
 
 # Research teardowns - third-party material, kept local
 research/
+
+# third-party CC0 assets: re-download per docs/REPO_REGISTRY.md section 11c (not committed)
+story_reel_foundation/lab/assets/ual/
+/assets/
+
+# frames of our reels: evidence stays on this machine, never pushed (the user, 2026-11-16: "make sure we dont upload our reels")
+story_reel_foundation/evidence/scene01_*
