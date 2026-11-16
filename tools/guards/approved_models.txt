@@ -1,0 +1,8 @@
+# Models allowed on this machine's caches (tools/guards/check_guards.py). One per line: <cache folder name> | <status> | <why>
+# status: approved = fine; pending = present without approval, awaiting the user's decision (WARN); anything not listed = FAIL.
+models--deepdml--faster-whisper-large-v3-turbo-ct2 | approved | word timings (tools/reelkit/align.py), approved 2026-11-14; placed by VoiceStudio
+models--k2-fsa--OmniVoice | approved | narration engine, VoiceStudio's own (ADR 0004); weights CC-BY-NC
+models--adefossez--HTDemucs | approved | VoiceStudio's own (installed by the user's app)
+models--csukuangfj--sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8 | approved | VoiceStudio's own (installed by the user's app)
+models--csukuangfj--sherpa-onnx-whisper-tiny | approved | VoiceStudio's own (installed by the user's app)
+models--Systran--faster-whisper-small | pending | downloaded by MISTAKE 2026-11-16 (ERR-0016); unused; the user decides whether to delete it

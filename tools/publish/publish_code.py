@@ -48,6 +48,10 @@ def lines(name):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--dry-run", action="store_true"); a = ap.parse_args()
     private, frozen, markers = lines("private_paths.txt"), lines("frozen_paths.txt"), lines("story_markers.txt")
+    g = subprocess.run([sys.executable, str(ROOT / "tools" / "guards" / "check_guards.py")], cwd=ROOT, capture_output=True, text=True)
+    print(g.stdout.strip())
+    if g.returncode:                                       # a guard failed: an unapproved model, a missing hook, a broken reviewer
+        print("BLOCKED by the guards: nothing pushed"); sys.exit(1)
     git("fetch", "-q", REMOTE)
     has_public = git("rev-parse", "--verify", "-q", f"{REMOTE}/{BRANCH}", check=False)
     parent = has_public or git("rev-parse", f"{REMOTE}/main")

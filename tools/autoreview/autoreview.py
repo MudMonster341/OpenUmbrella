@@ -61,6 +61,37 @@ def db(x):
     return 20 * np.log10(max(float(x), 1e-9))
 
 
+# ------------------------------------------------------------------------------------------------ measures (each one has a self-test: selftest.py)
+def audio_of(video):
+    """the sound inside the video file itself, mono 48 kHz. Never today's stems: they may belong to another render."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-ac", "1", "-ar", "48000", "-f", "s16le", "-"], capture_output=True).stdout
+    return np.frombuffer(raw, np.int16).astype(np.float64) / 32768, 48000
+
+
+def loudest_time(x, sr):
+    """the centre of the loudest 200 ms (short-term RMS), not the highest peak: a limiter flattens every click to one ceiling"""
+    w, hop = int(0.2 * sr), int(0.05 * sr)
+    st = np.array([np.sqrt((x[i:i + w] ** 2).mean()) for i in range(0, max(1, len(x) - w), hop)])
+    return float(st.argmax() * 0.05 + 0.1)
+
+
+def stems_match(stem_path, seconds):
+    """a stem belongs to this render only if it exists and has the render's length"""
+    return Path(stem_path).exists() and abs(read_wav(stem_path)[0].size / 48000 - seconds) < 0.05
+
+
+def picture_jumps(small, fps):
+    """times of sudden picture changes, with the caption band and the badge masked (a new word is not a jump)"""
+    n = len(small); t = np.arange(n) / fps
+    pm = np.ones(small.shape[1:], bool); pm[:12, :] = False; pm[60:84, :] = False
+    dm = np.r_[0, np.abs(np.diff(small, axis=0))[:, pm].mean(1)]
+    locm = np.array([np.median(dm[max(1, i - 6):i + 7]) for i in range(n)])
+    jumps = []
+    for i in range(1, n):
+        if dm[i] > max(6.0, 5 * locm[i]) and (not jumps or t[i] - jumps[-1] > 3 / fps): jumps.append(float(t[i]))
+    return jumps
+
+
 # ------------------------------------------------------------------------------------------------ picture
 def global_shift(a, b, win):
     """phase correlation: the whole-frame shift between two frames, in pixels of this resolution"""
@@ -104,12 +135,7 @@ def picture(plan, video, info):
     for i in cut_idx:
         if not cuts or t[i] - cuts[-1] > 3 / fps: cuts.append(float(t[i]))
     missing = [b for b in bounds if not any(abs(c - b) <= 2.5 / fps for c in cuts)]
-    pm = np.ones(small.shape[1:], bool); pm[:12, :] = False; pm[60:84, :] = False      # the picture without the caption band and badge
-    dm = np.r_[0, np.abs(np.diff(small, axis=0))[:, pm].mean(1)]
-    locm = np.array([np.median(dm[max(1, i - 6):i + 7]) for i in range(n)])
-    jumps = []
-    for i in range(1, n):
-        if dm[i] > max(6.0, 5 * locm[i]) and (not jumps or t[i] - jumps[-1] > 3 / fps): jumps.append(float(t[i]))
+    jumps = picture_jumps(small, fps)
     extra = [round(c, 3) for c in jumps if not any(abs(c - b) <= 3 / fps for b in bounds) and not near_hit(c)]
     check("V5", "Every planned cut is in the film", not missing, f"{len(bounds) - len(missing)}/{len(bounds)} found" + (f"; missing at {missing}" if missing else ""),
           "each shot boundary within 2.5 frames", "reel-builder skill: cut ON the word; direction.js keys shots to words")
@@ -195,8 +221,7 @@ def sound(plan, film, video, info):
     if info["adur"] is not None:
         check("A5", "Picture and sound the same length", abs(info["vdur"] - info["adur"]) <= 1 / info["fps"] + 0.02,
               f"video {info['vdur']:.3f} s, audio {info['adur']:.3f} s", "within a frame", "MEMORY: never -shortest, check both")
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-ac", "1", "-ar", "48000", "-f", "s16le", "-"], capture_output=True).stdout
-    x, sr = np.frombuffer(raw, np.int16).astype(np.float64) / 32768, 48000          # the sound IN the video under review, not today's files
+    x, sr = audio_of(video)                                                       # the sound IN the video under review, not today's files
     p0, p1 = plan["prehit"]
     sil = x[int((p0 + 0.15) * sr):int(p1 * sr)]
     sil_db = db(np.sqrt((sil ** 2).mean())) if len(sil) else 0
@@ -204,12 +229,10 @@ def sound(plan, film, video, info):
     check("A6", "The silence before the hit is quiet", sil_db <= -35, f"{sil_db:.1f} dBFS (night v2 was -59)", "<= -35 dBFS",
           "the user 2026-11-15: a silence before the hit; night v5 thump filled it (-14.6)")
     check("A7", "The hit jumps out of the silence", crash_db - sil_db >= 25, f"+{crash_db - sil_db:.0f} dB", ">= +25 dB", "ADR 0015")
-    w = int(0.2 * sr); hop = int(0.05 * sr)                                        # short-term loudness, not peaks: the limiter flattens every click to one ceiling
-    st = np.array([np.sqrt((x[i:i + w] ** 2).mean()) for i in range(0, len(x) - w, hop)])
-    loud_t = st.argmax() * 0.05 + 0.1
+    loud_t = loudest_time(x, sr)
     check("A8", "The loudest moment is the hit", abs(loud_t - plan["impact"]) <= 0.6, f"loudest at {loud_t:.2f} s (hit {plan['impact']:.2f})", "within 0.6 s of the hit",
           "ERR-0017: the clock tock was louder than the crash")
-    stems_fresh = (out / "narration.wav").exists() and abs(read_wav(out / "narration.wav")[0].size / 48000 - len(x) / sr) < 0.05
+    stems_fresh = stems_match(out / "narration.wav", len(x) / sr)
     if not stems_fresh:
         check("A9", "The music sits under the voice", False, "the stems in sound/out do not belong to this video", "stems of this render", "a check must measure the thing it reports on", blocker=False)
     elif (out / "bed.wav").exists():
