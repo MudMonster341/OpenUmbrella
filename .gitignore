@@ -35,3 +35,6 @@ story_reel_foundation/lab/assets/ual/
 
 # frames of our reels: evidence stays on this machine, never pushed (the user, 2026-11-16: "make sure we dont upload our reels")
 story_reel_foundation/evidence/scene01_*
+story_reel_foundation/*/.hyperframes/
+story_reel_foundation/*/snaps*/
+story_reel_foundation/*/renders/

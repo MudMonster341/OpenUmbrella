@@ -80,8 +80,9 @@ export function buildWorld(scene, cfg) {
 
   /* ---- street lamp that flickers, traffic light that cycles ---- */
   const lampLights = [];
+  const hidable = [];                                /* the far-side lamp the one-take crash camera sits beside: its pole is hidden during the take (cfg.hideLamp), its light stays */
   const lampPost = (x, z, dir, shadow) => {   /* dir: +1 the arm reaches toward +z (over the road from the near side), -1 toward -z */
-    const g = new THREE.Group(); g.position.set(x, 0, z); G.add(g);
+    const g = new THREE.Group(); g.position.set(x, 0, z); G.add(g); if (x === 4.2 && z === 5.6) hidable.push(g);
     const pole = rbox(0.14, 4.6, 0.14, 0x3c434f, 0.04); pole.position.y = 2.3; g.add(pole);
     const arm = rbox(0.1, 0.1, 1.1, 0x3c434f, 0.03); arm.position.set(0, 4.5, dir * 0.5); g.add(arm);
     const head = rbox(0.42, 0.14, 0.32, 0x2c3139, 0.04); head.position.set(0, 4.42, dir * 1.0); g.add(head);
@@ -93,6 +94,7 @@ export function buildWorld(scene, cfg) {
     lampLights.push(s);
   };
   for (const [x, z, d, sh] of (cfg.night ? [[-4.6, -0.9, 1, true], [6.5, -0.9, 1, false], [-12, -0.9, 1, false], [4.2, 5.6, -1, false], [11, 5.6, -1, false]] : [])) lampPost(x, z, d, sh);
+  live.push((tw) => { const h = !!cfg.hideLamp && tw >= cfg.hideLamp[0] && tw <= cfg.hideLamp[1]; hidable.forEach((g) => { g.visible = !h; }); });
   const lamp = new THREE.Group(); lamp.position.set(-5, 0, -1.5); if (!cfg.night) G.add(lamp);
   const pole = rbox(0.16, 4.6, 0.16, 0x4a5262, 0.04); pole.position.y = 2.3; lamp.add(pole);
   const arm = rbox(1.1, 0.12, 0.12, 0x4a5262, 0.03); arm.position.set(0.5, 4.5, 0); lamp.add(arm);
@@ -226,6 +228,37 @@ export function buildWorld(scene, cfg) {
     frag.forEach((f) => { f.m.visible = hit && !noFrag; if (!hit) return; f.m.position.set(f.p0.x + f.v.x * dt, Math.max(f.sz * 0.5, f.p0.y + f.v.y * dt - 4.9 * dt * dt), f.p0.z + f.v.z * dt); f.m.rotation.set(f.w.x * dt, f.w.y * dt, f.w.z * dt); });
     const ru = clamp01(dt / 0.9); ring.material.opacity = 0;   /* removed: it read as a debug marker (critic, night v2 and v3) */ ring.scale.setScalar(hit ? 0.3 + ru * 4.2 : 0.3);
   });
+
+  /* ---- the squirrel: darts off the near pavement across the bus's lane (cfg.squirrel); the driver's reason to swerve ---- */
+  if (cfg.squirrel) {
+    const Q = cfg.squirrel, sq = new THREE.Group(); sq.visible = false; sq.scale.setScalar(Q.scale ?? 1); G.add(sq);   /* Q.scale: stylised up so it reads from the camera at 10 m */
+    const fur = mat(0x8a6a4c, 0.9), furD = mat(0x5e4630, 0.9), belly = mat(0xd9c9ae, 0.9), dark = new THREE.MeshBasicMaterial({ color: 0x0b0b0d });
+    const hop = new THREE.Group(); sq.add(hop);                                    /* the whole body hops inside this; the shadow-casting parts hang off it */
+    const part2 = (geo, m, x, y, z, sx = 1, sy = 1, sz = 1) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); o.castShadow = true; hop.add(o); return o; };
+    const sphere = new THREE.SphereGeometry(1, 14, 10);
+    part2(sphere, fur, 0, 0.13, 0, 0.09, 0.085, 0.16);                             /* body, long axis along +z (the way it runs) */
+    part2(sphere, belly, 0, 0.1, 0.03, 0.075, 0.06, 0.12);
+    const head = new THREE.Group(); head.position.set(0, 0.2, 0.16); hop.add(head);
+    const hp = (geo, m, x, y, z, sx = 1, sy = 1, sz = 1) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); o.castShadow = true; head.add(o); return o; };
+    hp(sphere, fur, 0, 0, 0, 0.065, 0.06, 0.075); hp(sphere, belly, 0, -0.025, 0.05, 0.035, 0.03, 0.04);   /* head and muzzle */
+    hp(sphere, dark, 0, -0.012, 0.092, 0.012, 0.012, 0.012);                                               /* nose */
+    for (const s of [-1, 1]) { hp(sphere, furD, s * 0.04, 0.065, -0.015, 0.02, 0.035, 0.014); hp(sphere, dark, s * 0.045, 0.015, 0.045, 0.011, 0.014, 0.011); }   /* ears, eyes */
+    const legs = [-1, 1].map((s) => [0.07, -0.1].map((z) => part2(sphere, furD, s * 0.05, 0.05, z, 0.025, 0.05, 0.04)));
+    const tail = new THREE.Group(); tail.position.set(0, 0.17, -0.14); hop.add(tail);   /* a big curled bush: three puffs rising and curling forward over the back */
+    [[0, 0.03, -0.07, 0.06, 0.07, 0.09], [0, 0.14, -0.1, 0.065, 0.1, 0.075], [0, 0.26, -0.06, 0.06, 0.08, 0.07], [0, 0.3, 0.03, 0.045, 0.05, 0.06]].forEach(([x, y, z, a, b, c], i) => { const o = new THREE.Mesh(sphere, i % 2 ? furD : fur); o.position.set(x, y, z); o.scale.set(a, b, c); o.castShadow = true; tail.add(o); });
+    const gallop = Math.PI * 2 * 3.2;                                              /* ~3 bounds a second */
+    live.push((tw) => {
+      const u = clamp01((tw - Q.t0) / (Q.t1 - Q.t0));
+      sq.visible = tw >= Q.t0 - 0.01 && tw <= Q.t1 + 0.4;
+      if (!sq.visible) return;
+      const z = Q.z0 + (Q.z1 - Q.z0) * u, run = tw >= Q.t0 && tw <= Q.t1, ph = (tw - Q.t0) * gallop / (2 * Math.PI) * Math.PI;
+      sq.position.set(Q.x, 0, z); sq.rotation.y = 0;                               /* facing +z */
+      hop.position.y = run ? Math.abs(Math.sin(ph)) * 0.16 : 0; hop.rotation.x = run ? Math.cos(ph) * 0.18 : 0;   /* the hop: nose up as it leaves the ground */
+      tail.rotation.z = Math.sin(tw * 9) * 0.22; tail.rotation.x = run ? -0.15 + Math.sin(ph) * 0.1 : 0.1;
+      legs.forEach((pair, k) => pair.forEach((l, j) => { l.rotation.x = run ? Math.sin(ph + (j ? 1.4 : 0)) * 0.9 : 0; }));
+      head.rotation.x = run ? -Math.cos(ph) * 0.15 : 0;
+    });
+  }
 
   return {
     group: G, bus, SH: { x: SH_X, z: SH_Z },

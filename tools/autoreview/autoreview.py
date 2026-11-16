@@ -80,6 +80,27 @@ def stems_match(stem_path, seconds):
     return Path(stem_path).exists() and abs(read_wav(stem_path)[0].size / 48000 - seconds) < 0.05
 
 
+def speech_gaps(plan, audio_dir, floor_db=-45.0):
+    """every stretch with no voice, from 0 to the end of the film: each line's own WAV placed at its planned time, 20 ms
+    frames above floor_db count as voice. Deterministic: measured from the voice files and the plan, not from the mix."""
+    hop = 0.01; n = int(plan["end"] / hop) + 1; on = np.zeros(n, bool)
+    for l in plan["lines"]:
+        x, sr = read_wav(Path(audio_dir) / f"{l['id']}.wav"); w = int(0.02 * sr); k = len(x) // w
+        if k == 0: continue
+        lvl = 20 * np.log10(np.sqrt((x[:k * w].reshape(k, w) ** 2).mean(1)) + 1e-9)
+        for j in np.nonzero(lvl > floor_db)[0]:
+            a = int((l["t"] + j * 0.02) / hop); on[a:a + 2] = True
+    gaps, i = [], 0
+    while i < n:
+        if not on[i]:
+            j = i
+            while j < n and not on[j]: j += 1
+            gaps.append((round(i * hop, 2), round(j * hop, 2))); i = j
+        else:
+            i += 1
+    return gaps
+
+
 def picture_jumps(small, fps):
     """times of sudden picture changes, with the caption band and the badge masked (a new word is not a jump)"""
     n = len(small); t = np.arange(n) / fps
@@ -258,6 +279,12 @@ def voice(plan, film, asr):
         loud = lvl > -35
         voiced = float((flat[loud] < 0.35).mean()) if loud.any() else 0.0
         if voiced < 0.3: breath.append(f"{f.name} ({voiced:.0%} voiced)")
+    gaps = speech_gaps(plan, audio)
+    long_gaps = [f"{a:.2f}-{b:.2f} s ({b - a:.2f})" for a, b in gaps if b - a > 0.5]
+    check("S4", "No gap without a word longer than 0.5 s, start to end", not long_gaps,
+          f"{len(long_gaps)} gaps over 0.5 s" + (f": {', '.join(long_gaps[:5])}" if long_gaps else f"; longest {max((b - a for a, b in gaps), default=0):.2f} s"),
+          "every silence <= 0.5 s, including before the first word and after the last",
+          "the user 2026-11-16: 'we shouldn't have more than half a second gap where there is no word said ... the gaps give the user a way to scroll'")
     check("S1", "Every voice take is speech, not breath", not breath, "; ".join(breath) or "all voiced", ">= 30% of loud frames voiced",
           "ERR-0017: L06 'And...' was 1.1 s of breath for four versions")
     with wave.open(str(film / "sound" / "out" / "voice_clean" / f"{ids[0]}.wav")) as w:
