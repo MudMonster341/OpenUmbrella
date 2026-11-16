@@ -58,8 +58,8 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-fps="30" data-start="0" data-duration="27.866" data-width="1080" data-height="1920">
-      <canvas id="three-layer" class="clip" data-start="0" data-duration="27.866" data-track-index="0" data-layout-allow-overflow></canvas>
+    <div id="root" data-composition-id="main" data-fps="30" data-start="0" data-duration="48.045" data-width="1080" data-height="1920">
+      <canvas id="three-layer" class="clip" data-start="0" data-duration="48.045" data-track-index="0" data-layout-allow-overflow></canvas>
     </div>
 
     <script type="module">
@@ -68,10 +68,11 @@
       import { rbox } from "./lib/people.js";
       import { buildWorld } from "./lib/world.js";
       import { makeOverlay, applyOverlay, flashAlpha, shakeOffset, worldTime } from "./lib/fx.js";
-      import { DIRECTION as D } from "./direction.js";
+      import { DIRECTION as D, pathAt } from "./direction.js";
       import { setupLook } from "./lib/look.js";
       import { loadRig, makeActor, mixExpr, blinkAt } from "./lib/actor.js";
-      import { makeInserts, applyPhone, applyClock } from "./lib/mograph.js";
+      import { makeInserts, applyPhone, applyClock, applyNumber, applyMe, applyCalendar, applyEndCard } from "./lib/mograph.js";
+      import { buildSets } from "./lib/sets.js";
 
       const W = 1080, H = 1920, clamp01 = (x) => Math.min(1, Math.max(0, x));
       const canvas = document.getElementById("three-layer"), rootEl = document.getElementById("root");
@@ -85,20 +86,16 @@
       const bl = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.018, 20), new THREE.MeshStandardMaterial({ color: 0x3b2a22 })); bl.position.y = 0.068; benchCup.add(bl);
       const bs = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0385, 0.05, 20), new THREE.MeshStandardMaterial({ color: 0xb7895a, roughness: 0.9 })); benchCup.add(bs);
       scene.add(benchCup);
+      const sets = buildSets(scene, { night: D.world.night, palette: D.world.palette, sets: D.sets }, D.world.palette);   /* the shop, the sign, the car door, the underpass stairs (lib/sets.js) */
+      let stripLight = null; sets.group.traverse((o) => { if (o.isPointLight && o.color.getHex() === 0xd8eaff) stripLight = o; });
       scene.traverse((o) => { if (o.isMesh) { o.updateWorldMatrix(true, false); if (new THREE.Vector3().setFromMatrixPosition(o.matrixWorld).y > 9) o.userData.noShadow = true; } });
       const look = setupLook(renderer, scene, camera, D.look, W, H);
       const closeKey = new THREE.SpotLight(0xffe2c4, 0, 7, 0.32, 0.65, 1.5); scene.add(closeKey, closeKey.target);   /* a close-up's own key: a narrow spot on the face only (a directional key lit the wall behind him evenly: critic, night v2 and v3) */
       const overlay = makeOverlay(rootEl), ins = makeInserts(rootEl);
       const dbg = D.debug ? ["lead head", "shelter", "bus front"].map((n) => { const d = document.createElement("div"); d.className = "dbg"; d.textContent = n[0].toUpperCase(); rootEl.appendChild(d); return d; }) : null;
 
-      const J = D.cast.lead;
-      let lead = null, extras = [];
-      const lerpAng = (a, b, u) => { let d = ((b - a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * u; };
-      function pathAt(path, t) {
-        let i = 0; while (i < path.length - 2 && t > path[i + 1].t) i++;
-        const a = path[i], b = path[i + 1], r = clamp01((t - a.t) / (b.t - a.t)), s = r * r * (3 - 2 * r), u = r + (s - r) * (b.ease ?? 0.6);   /* eased: no instant starts, stops or turns */
-        return { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u, yaw: lerpAng(a.yaw, b.yaw, s) };
-      }
+      const CAST = D.cast, J = CAST.lead;
+      let actors = {}, extras = [];
       function faceAt(keys, t) {
         let i = 0; while (i < keys.length - 1 && t >= keys[i + 1].t) i++;
         const cur = keys[i], prev = keys[i - 1] || cur, u = clamp01((t - cur.t) / (cur.blend ?? 0.18));
@@ -119,29 +116,140 @@
         const hh = D.camera?.handheld ?? 0, ph = T * 0.9 + s.t0 * 3.1, dr = [Math.sin(ph) * hh, Math.sin(ph * 1.37 + 1.1) * hh * 0.7, 0];
         return { s, pos: l(s.from.pos, s.to.pos).map((v, i) => v + dr[i]), look: l(s.from.look, s.to.look), fov: f0 + (f1 - f0) * u };
       }
+      const act = (arr, T) => (arr || []).find((w) => T >= w.t0 && T < w.t1);
+
+      /* ---- props of scenes 2-4 that are not in the libs: a wheelchair, the room of the two doors, the wall of days ---- */
+      const stdM = (c, r = 0.8, e = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...e });
+      function makeWheelchair(transparent) {
+        const g = new THREE.Group(), mat = stdM(transparent ? 0xd9dde6 : 0x2b2f38, 0.5, { metalness: 0.4, transparent, opacity: 1 }), bx = (w, h, d, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+        for (const s of [-1, 1]) {
+          const w = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.024, 10, 28), mat); w.rotation.y = Math.PI / 2; w.position.set(s * 0.3, 0.32, -0.05); g.add(w);
+          const c = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 14), mat); c.rotation.z = Math.PI / 2; c.position.set(s * 0.3, 0.1, 0.36); g.add(c);
+          bx(0.03, 0.03, 0.46, s * 0.24, 0.62, 0.0); bx(0.03, 0.3, 0.03, s * 0.24, 0.5, 0.2);
+        }
+        bx(0.46, 0.05, 0.44, 0, 0.47, 0); bx(0.46, 0.46, 0.04, 0, 0.72, -0.22); bx(0.3, 0.03, 0.18, 0, 0.16, 0.42);
+        return { g, mat };
+      }
+      const chairStairs = makeWheelchair(true); chairStairs.g.position.set(-28.6, 0, -3.3); chairStairs.g.rotation.y = -Math.PI / 2; scene.add(chairStairs.g); chairStairs.g.visible = false;
+      const CH = { x: 200, z: 200 };
+      const chairB = makeWheelchair(false); chairB.g.position.set(CH.x + 1.8, 0, CH.z - 4.93); scene.add(chairB.g);
+      const choiceG = (function buildChoice() {
+        const G = new THREE.Group(); scene.add(G);
+        const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(CH.x + x, y, CH.z + z); m.castShadow = m.receiveShadow = true; G.add(m); return m; };
+        const fl = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), stdM(0x555963, 0.55)); fl.rotation.x = -Math.PI / 2; fl.position.set(CH.x, 0.002, CH.z); fl.receiveShadow = true; G.add(fl);
+        const grey = stdM(0xaab0ba, 0.6, { metalness: 0.2 });
+        const panelTex = (rep) => { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d"), cols = ["#5f6b86", "#6a7692", "#56627c", "#74617e", "#4f6f78"];
+          for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = cols[(i * 3 + j * 2) % 5]; g.fillRect(i * 128, j * 128, 128, 128); }
+          let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+          for (let i = 0; i < 2600; i++) { const v = 60 + r() * 120; g.fillStyle = `rgba(${v},${v},${v + 10},0.22)`; g.fillRect(r() * 512, r() * 512, 1 + r() * 4, 1 + r() * 4); }
+          g.strokeStyle = "rgba(15,16,22,0.7)"; g.lineWidth = 5; for (let i = 0; i <= 512; i += 128) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 512); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(512, i); g.stroke(); }
+          g.fillStyle = "rgba(240,200,70,0.85)"; g.fillRect(0, 250, 512, 12);
+          for (let i = 0; i < 6; i++) { const x = r() * 512, gr = g.createLinearGradient(x, 0, x, 300); gr.addColorStop(0, "rgba(10,12,16,0.5)"); gr.addColorStop(1, "rgba(10,12,16,0)"); g.fillStyle = gr; g.fillRect(x, 0, 10 + r() * 20, 300); }
+          const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); return t; };
+        const wallP = new THREE.MeshStandardMaterial({ map: panelTex([8, 1.6]), roughness: 0.9 });
+        box(26, 7, 0.3, wallP, 0, 3.5, -7.0);                                        /* the far wall */
+        box(0.3, 7, 8, wallP, -9, 3.5, -3); box(0.3, 7, 8, wallP, 9, 3.5, -3);
+        const tex = (txt, col) => { const c = document.createElement("canvas"); c.width = 256; c.height = 160; const g = c.getContext("2d"); g.fillStyle = "#17171c"; g.beginPath(); g.roundRect(6, 6, 244, 148, 30); g.fill(); g.strokeStyle = col; g.lineWidth = 8; g.stroke(); g.fillStyle = col; g.font = "800 112px Poppins, Arial Black, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(txt, 128, 86); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+        [[-1.8, 0xffd9a0, 0xffc880, "12", "#ffd84a"], [1.8, 0xbfd3ff, 0x9fc0ff, "412", "#ff6a6a"]].forEach(([x, back, lightC, txt, col]) => {
+          box(0.14, 2.4, 0.3, grey, x - 0.67, 1.2, -3.0); box(0.14, 2.4, 0.3, grey, x + 0.67, 1.2, -3.0); box(1.48, 0.16, 0.3, grey, x, 2.48, -3.0);   /* the frame */
+          const hinge = new THREE.Group(); hinge.position.set(CH.x + x + Math.sign(x) * 0.62, 0, CH.z - 2.95); hinge.rotation.y = Math.sign(x) * -(Math.PI / 2 - 0.12); G.add(hinge);
+          const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.3, 0.07), grey); leaf.position.set(-Math.sign(x) * 0.6, 1.15, 0); leaf.castShadow = true; hinge.add(leaf);   /* the leaf swung open, towards us */
+          box(1.2, 0.05, 3.6, stdM(0x3b3e46, 0.7), x, 0.03, -4.8);
+          box(0.1, 3, 3.6, stdM(0x474b55, 0.9), x - 0.65, 1.5, -4.8); box(0.1, 3, 3.6, stdM(0x474b55, 0.9), x + 0.65, 1.5, -4.8);
+          const bk = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 3), new THREE.MeshBasicMaterial({ color: back })); bk.position.set(CH.x + x, 1.5, CH.z - 6.55); G.add(bk);
+          const lt = new THREE.PointLight(lightC, 14, 8, 1.4); lt.position.set(CH.x + x, 2.4, CH.z - 4.2); G.add(lt);
+          const num = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.6), new THREE.MeshBasicMaterial({ map: tex(txt, col), transparent: true })); num.position.set(CH.x + x, 3.0, CH.z - 2.82); G.add(num);
+        });
+        const mid = new THREE.PointLight(0xfff0d8, 10, 9, 1.5); mid.position.set(CH.x, 3.2, CH.z + 0.5); G.add(mid);
+        return G;
+      })();
+
+      const wallEl = document.createElement("div"); wallEl.className = "mgI"; ins.wrap.insertBefore(wallEl, ins.me);
+      wallEl.innerHTML = '<div style="position:absolute;inset:0;background:rgba(26,18,48,0.34);backdrop-filter:blur(7px)"></div><div id="wallGrid" style="position:absolute;left:120px;top:400px;width:840px;display:grid;grid-template-columns:repeat(20,1fr);gap:6px"></div><div id="wallPill" class="ov" style="position:absolute;left:50%;top:200px;font-size:128px;line-height:1;color:#fff;background:#d8363a;border:8px solid #17171c;border-radius:44px;padding:14px 44px;white-space:nowrap;opacity:0"></div>';
+      const wallGrid = wallEl.querySelector("#wallGrid"), wallPill = wallEl.querySelector("#wallPill"), wallCells = [], wallState = [];
+      for (let i = 0; i < 412; i++) { const c = document.createElement("i"); c.style.cssText = "display:block;height:36px;border-radius:9px;border:4px solid #17171c;background:#ffd84a;box-shadow:0 0 12px rgba(255,200,60,0.55)"; wallGrid.appendChild(c); wallCells.push(c); wallState.push(0); }
+      const easeIO = (x) => { x = clamp01(x); return x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2; };
+      function applyWall(T, Wc) {
+        const on = Wc && T >= Wc.t0 && T < Wc.t1; wallEl.style.opacity = on ? clamp01((T - Wc.t0) / 0.45) : 0; if (!on) return;
+        const g = Wc.grey ? Math.floor(400 * easeIO((T - Wc.grey.t0) / (Wc.grey.t1 - Wc.grey.t0))) : 0, pulse = 1 + 0.12 * Math.sin(T * 7);
+        for (let i = 0; i < 412; i++) {
+          const st = i < g - 8 ? 1 : i < g ? 2 : 0;                                           /* 2: the box that is just going out */
+          const live = Wc.grey && i >= 400 && g > 300;
+          if (wallState[i] !== st) { wallState[i] = st; const c = wallCells[i]; c.style.background = st === 1 ? "#4c4a54" : st === 2 ? "#ff6a4a" : "#ffd84a"; c.style.boxShadow = st === 0 ? "0 0 12px rgba(255,200,60,0.55)" : "none"; c.style.borderColor = st === 1 ? "#2a2931" : "#17171c"; }
+          if (live) wallCells[i].style.transform = `scale(${pulse})`; else if (wallCells[i].style.transform) wallCells[i].style.transform = "";
+        }
+        const pk = Wc.pill && T >= Wc.pill.t ? 1 : 0, ps = pk ? 1 + 0.18 * Math.max(0, 1 - (T - Wc.pill.t) * 5) : 0.4;
+        if (Wc.pill && wallPill.textContent !== Wc.pill.text) wallPill.textContent = Wc.pill.text;
+        wallPill.style.opacity = pk; wallPill.style.transform = `translateX(-50%) scale(${ps}) rotate(${Math.sin(T * 1.8) * 1.5}deg)`;
+      }
+      /* the phone going dark with the number still lit: an overlay inside the phone, and the thumb sliding away */
+      const phoneBody = ins.wrap.querySelector("#phone"), thumbEl = ins.wrap.querySelector("#phThumb");
+      const darkEl = document.createElement("div"); darkEl.style.cssText = "position:absolute;inset:0;background:#07070b;opacity:0;z-index:5;display:flex;align-items:center;justify-content:center;font-size:230px;font-weight:800;color:#ff7a6a;text-shadow:0 0 50px rgba(255,90,70,0.9)"; darkEl.textContent = "412"; phoneBody.appendChild(darkEl);
+
+      /* a waving arm (the rig has no wave clip): the same two-bone reach actor.js uses, copied here, with the hand swinging side to side */
+      const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _wq = new THREE.Quaternion(), IDQ = new THREE.Quaternion();
+      const turn = (bone, from, to, w) => {
+        _q.setFromUnitVectors(from.normalize(), to.normalize()); if (w < 1) _q.copy(_qw.slerpQuaternions(IDQ, _q, w));
+        bone.parent.getWorldQuaternion(_pq); bone.getWorldQuaternion(_wq); bone.quaternion.copy(_pq.invert().multiply(_q.multiply(_wq))); bone.updateMatrixWorld(true);
+      };
+      function reach(a, side, target, pole, w) {
+        if (w <= 0) return; const B = a.bones, up = B["upperarm_" + side], lo = B["lowerarm_" + side], ha = B["hand_" + side];
+        a.root.updateMatrixWorld(true);
+        const S = up.getWorldPosition(new THREE.Vector3()), E = lo.getWorldPosition(new THREE.Vector3()), Hh = ha.getWorldPosition(new THREE.Vector3());
+        const la = S.distanceTo(E), lb = E.distanceTo(Hh), T2 = target.clone(); let dd = S.distanceTo(T2); if (dd > (la + lb) * 0.995) { T2.sub(S).setLength((la + lb) * 0.995).add(S); dd = (la + lb) * 0.995; }
+        const dir = T2.clone().sub(S).normalize(), ang = Math.acos(Math.min(1, Math.max(-1, (la * la + dd * dd - lb * lb) / (2 * la * dd))));
+        const pd = pole.clone().sub(S); pd.sub(dir.clone().multiplyScalar(pd.dot(dir))).normalize();
+        const Ep = S.clone().addScaledVector(dir, Math.cos(ang) * la).addScaledVector(pd, Math.sin(ang) * la);
+        turn(up, E.clone().sub(S), Ep.clone().sub(S), w);
+        const E2 = lo.getWorldPosition(new THREE.Vector3()), H2 = ha.getWorldPosition(new THREE.Vector3()); turn(lo, H2.clone().sub(E2), T2.clone().sub(E2), w);
+      }
+      function wave(a, T, wv) {
+        const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); }, w = sm((T - wv.t0) / 0.3) * sm((wv.t1 - T) / 0.3); if (w <= 0) return;
+        a.root.updateMatrixWorld(true);
+        const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(a.root.getWorldQuaternion(new THREE.Quaternion())).setY(0).normalize(), right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+        const head = a.bones.Head.getWorldPosition(new THREE.Vector3()), chest = a.bones.spine_03.getWorldPosition(new THREE.Vector3()), s = Math.sin(T * 12);
+        const tgt = head.clone().addScaledVector(right, 0.3 + 0.07 * s).addScaledVector(fwd, 0.1).add(new THREE.Vector3(0, 0.12, 0));
+        reach(a, "r", tgt, chest.clone().addScaledVector(right, 0.5).add(new THREE.Vector3(0, -0.4, 0)), w);
+      }
+      function placeCast(tw, ghost, vision) {
+        for (const k of Object.keys(CAST)) {
+          const C = CAST[k], a = actors[k]; if (!a) continue;
+          const vis = (!C.show || C.show.some(([s, e]) => tw >= s && tw < e)) && !(ghost && k !== "lead");
+          a.root.visible = vis; if (!vis) continue;
+          if (k === "lead" && ghost) {
+            const g = ghost.lead;
+            a.root.position.set(g.x, g.lift ?? 0, g.z); a.root.rotation.set(0, g.yaw, 0); a.root.rotateX(g.tilt ?? 0); a.root.rotateZ(g.roll ?? 0);   /* thrown: off his feet */
+            a.perform(0, [{ t: 0, clip: g.clip, from: g.from, rate: 0, loop: false }]);
+            a.face(mixExpr(g.expr, g.expr, 1), false, g.look); a.props(false, false); a.outline(true);
+            continue;
+          }
+          const p = pathAt(C.path, tw);
+          a.root.position.set(p.x, p.y, p.z); a.root.rotation.set(0, p.yaw, 0);
+          a.perform(tw, C.anim);
+          a.gesture(tw, C.gestures); for (const wv of C.waves || []) wave(a, tw, wv);
+          const f = faceAt(C.face, tw); a.face(f.e, blinkAt(tw, C.seed), f.look);
+          const pw = C.phoneInHand, spans = !pw ? null : Array.isArray(pw[0]) ? pw : [pw];
+          const phoneOn = spans ? spans.some(([s, e]) => tw >= s && tw < e) : (C.gestures || []).some((gk) => gk.kind === "phone" && tw >= gk.t0 + 0.1 && tw < gk.t1 - 0.1);
+          a.props(C.cupInHand ? tw >= C.cupInHand[0] && tw < C.cupInHand[1] : false, phoneOn);
+          a.outline(!!(vision && C.vision));
+        }
+      }
 
       function renderAt(T) {
         const ghost = D.effects.ghost.find((g) => T >= g.at && T < g.at + g.dur);
-        const tw = ghost ? ghost.showTime : worldTime(D.effects, T);           /* the ghost is a FROZEN frame of the future */
+        const sh0 = D.shots.find((s) => T >= s.t0 && T < s.t1) || D.shots[D.shots.length - 1];
+        const vision = (D.effects.vision || []).some((v) => T >= v.t0 && T < v.t1);
+        const tw = ghost ? ghost.showTime : sh0.rep ? sh0.rep.tw0 + (T - sh0.t0) * sh0.rep.rate : worldTime(D.effects, T);   /* the ghost is a FROZEN frame of the future; a replay shot runs the world from its own moment */
         const shot = shotAt(T, tw);
-        world.update(tw, { noFrag: !!ghost });
-
-        /* the lead */
-        if (ghost) {
-          const g = ghost.lead;
-          lead.root.position.set(g.x, g.lift ?? 0, g.z); lead.root.rotation.set(0, g.yaw, 0); lead.root.rotateX(g.tilt ?? 0); lead.root.rotateZ(g.roll ?? 0);   /* thrown: off his feet */
-          lead.perform(0, [{ t: 0, clip: g.clip, from: g.from, rate: 0, loop: false }]);
-          lead.face(mixExpr(g.expr, g.expr, 1), false, g.look); lead.props(false, false);
-        } else {
-          const p = pathAt(J.path, tw);
-          lead.root.position.set(p.x, 0, p.z); lead.root.rotation.set(0, p.yaw, 0);
-          lead.perform(tw, J.anim);
-          lead.gesture(tw, J.gestures);
-          const f = faceAt(J.face, tw); lead.face(f.e, blinkAt(tw, J.seed), f.look);
-          const phoneOn = J.phoneInHand ? tw >= J.phoneInHand[0] && tw < J.phoneInHand[1] : (J.gestures || []).some((gk) => gk.kind === "phone" && tw >= gk.t0 + 0.1 && tw < gk.t1 - 0.1);
-          lead.props(tw >= J.cupInHand[0] && tw < J.cupInHand[1], phoneOn);
+        world.update(tw, { noFrag: !!ghost }); sets.update(tw);
+        if (vision && stripLight) {                                                          /* the underpass tube flickers on and off in single frames: in the vision that read as a whole-picture jump (V6), so its light is averaged over the last 0.25 s */
+          let acc = 0; for (let k = 0; k < 6; k++) { sets.update(tw - k * 0.05); acc += stripLight.intensity; } sets.update(tw); stripLight.intensity = acc / 6;
         }
-        lead.outline(!!ghost);
+        sets.group.visible = T >= D.sets.from;                                              /* scene 1 is exactly as it was: the shop, the parked car and the stairs do not exist before scene 2 */
+        const onCh = T >= D.choice[0] && T < D.choice[1]; choiceG.visible = onCh; chairB.g.visible = onCh;
+        placeCast(tw, ghost, vision); const lead = actors.lead;
+        /* the chair in the vision fades in on "never" */
+        const cw = D.effects.chair; chairStairs.g.visible = !!cw && tw >= cw[0] && tw < cw[1]; if (chairStairs.g.visible) chairStairs.mat.opacity = 0.8 * clamp01((tw - cw[0]) / 0.5);
         /* the cup: on the bench until the hit, then it rolls out of the wreckage */
         const rc = D.cup.roll, ru = clamp01((tw - rc.t0) / (rc.t1 - rc.t0)), rk = 1 - (1 - ru) ** 2;
         if (tw < J.cupInHand[1] || (tw >= D.world.impactT && tw < rc.t0)) benchCup.visible = false;
@@ -157,7 +265,7 @@
         });
 
         /* camera, or an insert */
-        const phoneOn = shot.s.kind === "phone", streetBehind = !phoneOn || shot.s.bg === "blur";
+        const phoneOn = shot.s.kind === "phone", insOn = shot.s.kind === "insert", streetBehind = !phoneOn || shot.s.bg === "blur";
         if (streetBehind) {
           const [sx, sy] = shakeOffset(D.effects, T);
           camera.fov = shot.fov; camera.updateProjectionMatrix();
@@ -169,31 +277,44 @@
           closeKey.position.set(hp.x + fo[0], hp.y + fo[1], hp.z + fo[2]); closeKey.target.position.copy(hp); closeKey.intensity = shot.s.faceKey.intensity * 5;
         } else closeKey.intensity = 0;
         canvas.style.opacity = streetBehind ? 1 : 0;
-        const blurred = shot.s.kind === "clock" || (phoneOn && shot.s.bg === "blur");
-        canvas.style.filter = blurred ? `blur(${shot.s.blur}px) brightness(0.75)` : "none";
+        const blurred = shot.s.kind === "clock" || (phoneOn && shot.s.bg === "blur") || (insOn && shot.s.blur > 0);
+        canvas.style.filter = blurred ? `blur(${shot.s.blur}px) brightness(${shot.s.dim ?? 0.75})` : "none";
         canvas.style.transform = blurred ? "scale(1.06)" : "none";   /* a blur samples past the edge: scaling up hides the pale rim */
-        const P = D.inserts.phone, phoneShot = phoneOn ? { ...P, t0: shot.s.t0, t1: shot.s.t1, bg: shot.s.bg } : null;
-        applyPhone(ins, T, phoneShot ? { ...phoneShot, push: P.push.map((v) => v) } : null);
+        const P = shot.s.phone || D.inserts.phone, phoneShot = phoneOn ? { ...P, t0: shot.s.t0, t1: shot.s.t1, bg: shot.s.bg, push: P.push.map((v) => v) } : null;
+        applyPhone(ins, T, phoneShot);
+        if (phoneShot) {                                                                       /* L19: the thumb leaves, the screen goes dark, the number stays */
+          const tl = P.thumbLeave, dk = P.dark;
+          thumbEl.style.transform = tl ? `translate(${-460 * easeIO((T - tl.t0) / (tl.t1 - tl.t0))}px, ${180 * easeIO((T - tl.t0) / (tl.t1 - tl.t0))}px) rotate(-26deg)` : "";
+          darkEl.style.opacity = dk ? clamp01((T - dk.t0) / (dk.t1 - dk.t0)).toFixed(3) : 0;
+        }
         applyClock(ins, T, D.inserts.clocks.find((c) => T >= c.t0 && T < c.t1));
-        applyOverlay(overlay, T, D.text, ghost ? 1 : 0);
-        overlay.stamp.style.opacity = phoneOn ? 0 : overlay.stamp.style.opacity;      /* never both: phone header OR corner */
+        const Nw = act(D.inserts.numbers, T); applyNumber(ins, T, Nw);
+        if (Nw) { ins.nmCard.style.top = Nw.top + "px"; ins.nmPill.style.top = (Nw.top + 550) + "px"; ins.nm.style.zIndex = Nw.over ? 3 : ""; ins.nmBg.style.display = Nw.over ? "none" : "";
+          ins.nmCard.style.boxShadow = Nw.glow ? `0 0 ${70 + 30 * Math.sin(T * 4)}px 24px rgba(255,170,60,0.85), 0 30px 60px rgba(0,0,0,0.35)` : ""; }
+        applyWall(T, act(D.inserts.walls, T));
+        const Mw = act(D.inserts.me, T); applyMe(ins, T, Mw);
+        if (Mw) ins.thumbs.forEach((th, i) => { th.c.style.display = T >= (Mw.reveal?.[i] ?? 1e9) ? "" : "none"; });   /* a cost chip appears on its word */
+        const Cw = act(D.inserts.calendars, T); applyCalendar(ins, T, Cw); if (Cw) ins.caWord.style.visibility = Cw.hideWord ? "hidden" : "visible";
+        applyEndCard(ins, T, D.inserts.end);
+        applyOverlay(overlay, T, D.text, vision || ghost ? 1 : 0);
+        overlay.stamp.style.opacity = phoneOn || insOn || shot.s.noBadge ? 0 : overlay.stamp.style.opacity;      /* never both: phone header OR corner */
         overlay.flash.style.opacity = flashAlpha(D.effects, T);
         if (dbg) {
           const pts = [new THREE.Vector3(lead.root.position.x, 1.75, lead.root.position.z), new THREE.Vector3(world.SH.x, 1.2, world.SH.z), world.busFront(tw)];
           pts.forEach((p, i) => { const v = p.clone().project(camera), off = Math.abs(v.x) > 1 || Math.abs(v.y) > 1 || v.z > 1;
             dbg[i].style.left = ((v.x + 1) / 2 * W) + "px"; dbg[i].style.top = ((1 - v.y) / 2 * H) + "px"; dbg[i].style.borderColor = off ? "#f00" : "#0f0"; });
         }
-        if (streetBehind) look.render(T, ghost ? 1 : 0);
+        if (streetBehind) look.render(T, vision || ghost ? 1 : 0);
       }
 
       /* setup is one promise; every seek waits for it (HyperFrames buildReady, registry/examples/path-traced-3d) */
       const ready = (async () => {
         const rig = await loadRig("assets/ual/UAL1_Standard.glb");
-        lead = makeActor(rig, J.look); scene.add(lead.root);
+        for (const k of Object.keys(CAST)) { actors[k] = makeActor(rig, CAST[k].look); scene.add(actors[k].root); }
         extras = D.extras.map((e) => { const a = makeActor(rig, e.look); scene.add(a.root); return { a, e }; });
       })();
       window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {}; window.__hf.buildReady["scene01"] = ready;
-      window.__lab = { get lead() { return lead; }, renderAt, THREE, D };   /* inspection only (debugging in a browser); does not affect frames */
+      window.__lab = { get lead() { return actors.lead; }, actors, renderAt, THREE, D };   /* inspection only (debugging in a browser); does not affect frames */
       let queue = ready;
       window.addEventListener("hf-seek", (e) => {
         const time = e.detail.time;

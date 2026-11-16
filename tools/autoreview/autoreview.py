@@ -101,6 +101,16 @@ def speech_gaps(plan, audio_dir, floor_db=-45.0):
     return gaps
 
 
+def caption_edge_pixels(video, t, W=36):
+    """white or yellow caption pixels in the outer W px of the caption band, at full resolution. The caption's dark outline and
+    shadow sit ~25 px wide, so a word that stays inside the frame shows no white there; a word running off it does."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1", "-vf", "crop=1080:340:0:1280",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+    if len(raw) != 1080 * 340 * 3: return 0
+    img = np.frombuffer(raw, np.uint8).reshape(340, 1080, 3).astype(int); e = np.concatenate([img[:, :W], img[:, -W:]], 1)
+    return int(((e.min(2) > 225) | ((e[..., 0] > 225) & (e[..., 1] > 190) & (e[..., 2] < 110))).sum())
+
+
 def frame_rgb(video, t, w=108, h=192):
     raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1", "-vf", f"scale={w}:{h}:flags=area",
                           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
@@ -186,11 +196,10 @@ def picture(plan, video, info):
     for c in plan["captions"]:                                                   # a caption must never touch the frame edge
         i = int(round(c["t"] * fps)) + 1
         if i >= n or i < 2: continue
-        band, prev = mid[i][128:162], mid[i - 2][128:162]
-        jump = max(band[:, :3].max(), band[:, -3:].max()) - max(prev[:, :3].max(), prev[:, -3:].max())
-        if jump > 60: edge_bad.append(f"{c['word']} {c['t']:.2f} s (+{jump:.0f})")
-    check("C1", "Captions stay inside the frame", not edge_bad, "; ".join(edge_bad[:5]) or "none touch the edge", "edge brightening at a caption's onset <= 60",
-          "TWENTY-THREE and ACCORDING ran off the frame in v5 (found 2026-11-16); v5 measured 181, v6 10")
+        hits = max(caption_edge_pixels(video, c["t"] + k / fps) for k in (1, 2))   # the pop scales a word up for its first frames
+        if hits >= 50: edge_bad.append(f"{c['word']} {c['t']:.2f} s ({hits} text pixels in the outer 36 px)")
+    check("C1", "Captions stay inside the frame", not edge_bad, "; ".join(edge_bad[:5]) or "none touch the edge", "< 50 caption-coloured (white/yellow) pixels in the outer 36 px of the caption band, 1-2 frames after onset, full resolution",
+          "TWENTY-THREE ran off the frame in v5 (3715 px; legit captions 0). CORRECTION 2026-11-17: ACCORDING did NOT overflow (~40 px inside); the first version misread it and also fired on cuts")
     check("V6", "No unplanned jumps", not extra, f"{len(extra)} unplanned" + (f" at {extra[:6]}" if extra else ""), "0 in the picture (captions masked; the hit's flash excepted)",
           "the user 2026-11-16: 'it feels stop motion at points'")
 
@@ -342,7 +351,16 @@ def voice(plan, film, asr):
 
 
 NUM = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
-TENS = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty"}
+TENS = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty", 6: "sixty", 7: "seventy", 8: "eighty", 9: "ninety"}
+
+
+def spell(v):
+    """412 -> four hundred and twelve (the script's British style); up to 9999. It stopped at 59 and failed L13 ('412'), 2026-11-17."""
+    if v < 20: return [NUM[v]]
+    if v < 100: return [TENS[v // 10]] + ([NUM[v % 10]] if v % 10 else [])
+    if v < 1000: return [NUM[v // 100], "hundred"] + (["and"] + spell(v % 100) if v % 100 else [])
+    if v < 10000: return spell(v // 1000) + ["thousand"] + ((["and"] if v % 1000 < 100 else []) + spell(v % 1000) if v % 1000 else [])
+    return [str(v)]
 
 
 def words_of(s):
@@ -350,10 +368,7 @@ def words_of(s):
     out = []
     for tok in re.findall(r"[a-z']+|\d+", s):
         if tok.isdigit():
-            v = int(tok)
-            if v < 20: out.append(NUM[v])
-            elif v < 60: out += [TENS[v // 10]] + ([NUM[v % 10]] if v % 10 else [])
-            else: out.append(tok)
+            out += spell(int(tok))                                  # Whisper writes numbers as digits; the script spells them
         else:
             out.append(tok)
     return out

@@ -4,6 +4,7 @@
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const easeOut = (x) => 1 - Math.pow(1 - clamp01(x), 3);
 const easeInOut = (x) => { x = clamp01(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const back2 = (x) => { x = clamp01(x); const c = 1.2; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };   /* a softer overshoot for card entries (V7 judder) */
 const back = (x) => { x = clamp01(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 
 /* the sender's contact photo: small and unremarkable */
@@ -16,7 +17,7 @@ export function makeInserts(root) {
   wrap.innerHTML = `
   <div id="room"><div id="lampglow"></div><div id="bok1" class="bok"></div><div id="bok2" class="bok"></div><div id="bok3" class="bok"></div><div id="table"></div></div>
   <div id="phoneWrap"><div id="phShadow"></div><div id="phRig">
-    <div id="phHandBack"><i class="phF" style="top:560px"></i><i class="phF" style="top:690px"></i><i class="phF" style="top:820px"></i><i class="phF" style="top:950px;width:92px"></i><div id="phPalm"></div></div>
+    <svg id="phHandBack" viewBox="0 0 660 1280"><path d="M300 1150C200 1250 120 1450 170 1800L560 1800C700 1650 800 1350 810 1050L810 560C810 520 780 500 740 520L640 560Z" fill="#c58a63" stroke="#17171c" stroke-width="6" stroke-linejoin="round"/><path d="M170 1800C120 1450 200 1250 300 1150C260 1350 300 1600 400 1800Z" fill="#a2694a" opacity="0.55"/><ellipse cx="720" cy="1180" rx="70" ry="150" fill="#dba57f" opacity="0.45"/><path d="M330 1285C300 1400 300 1500 330 1620" stroke="#a2694a" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.7"/><rect x="620" y="558" width="190" height="104" rx="52" fill="#c58a63" stroke="#17171c" stroke-width="6"/><path d="M740 574q10 36 0 72" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M640 570H728" stroke="#dba57f" stroke-width="8" stroke-linecap="round"/><rect x="620" y="684" width="208" height="108" rx="54" fill="#c58a63" stroke="#17171c" stroke-width="6"/><path d="M751 700q10 38 0 76" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M640 696H736" stroke="#dba57f" stroke-width="8" stroke-linecap="round"/><rect x="620" y="813" width="196" height="106" rx="53" fill="#c58a63" stroke="#17171c" stroke-width="6"/><path d="M744 829q10 37 0 74" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M640 825H730" stroke="#dba57f" stroke-width="8" stroke-linecap="round"/><rect x="620" y="940" width="158" height="92" rx="46" fill="#c58a63" stroke="#17171c" stroke-width="6"/><path d="M721 956q10 30 0 60" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M640 952H713" stroke="#dba57f" stroke-width="8" stroke-linecap="round"/></svg>
     <div id="phone">
     <div id="notch"></div>
     <div id="phLock"><div id="phLockTime"></div>
@@ -26,7 +27,7 @@ export function makeInserts(root) {
       <div id="phHome"></div></div>
     <div id="buzzL" class="buzz"></div><div id="buzzR" class="buzz"></div>
     </div>
-    <div id="phThumb"></div>
+    <svg id="phThumb" viewBox="0 0 660 1280"><defs><filter id="phBl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter></defs><ellipse cx="610" cy="624" rx="52" ry="52" fill="#000" opacity="0.28" filter="url(#phBl)"/><rect x="584" y="561" width="92" height="98" rx="49" fill="#dba57f" stroke="#17171c" stroke-width="6"/><path d="M660 572q10 38 0 76" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M600 574H640" stroke="#f0cdb2" stroke-width="7" stroke-linecap="round" opacity="0.8"/><ellipse cx="610" cy="752" rx="52" ry="54" fill="#000" opacity="0.28" filter="url(#phBl)"/><rect x="584" y="687" width="92" height="102" rx="51" fill="#dba57f" stroke="#17171c" stroke-width="6"/><path d="M660 698q10 40 0 80" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M600 700H640" stroke="#f0cdb2" stroke-width="7" stroke-linecap="round" opacity="0.8"/><ellipse cx="610" cy="880" rx="52" ry="53" fill="#000" opacity="0.28" filter="url(#phBl)"/><rect x="584" y="816" width="92" height="100" rx="50" fill="#dba57f" stroke="#17171c" stroke-width="6"/><path d="M660 827q10 39 0 78" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M600 829H640" stroke="#f0cdb2" stroke-width="7" stroke-linecap="round" opacity="0.8"/><ellipse cx="610" cy="1000" rx="52" ry="46" fill="#000" opacity="0.28" filter="url(#phBl)"/><rect x="584" y="943" width="92" height="86" rx="43" fill="#dba57f" stroke="#17171c" stroke-width="6"/><path d="M660 954q10 32 0 64" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M600 956H640" stroke="#f0cdb2" stroke-width="7" stroke-linecap="round" opacity="0.8"/><ellipse cx="96" cy="1100" rx="50" ry="90" fill="#000" opacity="0.3" filter="url(#phBl)"/><path d="M-70 1440C-110 1250-70 1100 10 1020C50 985 110 1000 104 1050C98 1100 56 1150 52 1230C50 1300 70 1380 90 1440Z" fill="#c58a63" stroke="#17171c" stroke-width="6" stroke-linejoin="round"/><path d="M-70 1440C-110 1250-70 1100 10 1020C-30 1120-30 1300 0 1440Z" fill="#a2694a" opacity="0.5"/><ellipse cx="62" cy="1038" rx="26" ry="20" transform="rotate(-35 62 1038)" fill="#efcfb6" stroke="#a2694a" stroke-width="3"/><path d="M-10 1190q40 12 66 -6" stroke="#a2694a" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M60 1080C72 1120 58 1160 50 1200" stroke="#dba57f" stroke-width="9" fill="none" stroke-linecap="round" opacity="0.7"/></svg>
   </div></div>
   <div id="clockWrap"><svg id="clock" viewBox="0 0 400 400">
     <defs><radialGradient id="cg" cx="45%" cy="40%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9e6dc"/></radialGradient></defs>
@@ -77,16 +78,17 @@ export function applyPhone(o, T, P) {
   const press = T >= oAt - 0.18 && T < oAt ? easeOut((T - oAt + 0.18) / 0.18) : T >= oAt ? 1 - easeOut((T - oAt) / 0.12) : 0;
   const prevText = P.preview || list[0].text;
   if (o.prev.textContent !== prevText) { o.prev.textContent = prevText; o.prev.style.fontSize = "30px"; const w = o.prev.scrollWidth; if (w > 372) o.prev.style.fontSize = Math.floor(30 * 372 / w) + "px"; }
-  o.banner.style.opacity = ent >= 0 ? clamp01(1 - k * 3) : 0;
+  o.banner.style.opacity = ent >= 0 ? clamp01(1 - (k - 0.5) / 0.3) : 0;
   o.banner.style.transform = `translateY(${(1 - slide) * -520}px) scale(${1 - 0.04 * press})`;
   const rp = clamp01((T - oAt + 0.18) / 0.43);
   o.ripple.style.opacity = T >= oAt - 0.18 && T < oAt + 0.25 ? (0.6 * (1 - rp)).toFixed(3) : 0;
   o.ripple.style.transform = `translate(-50%, -50%) scale(${0.3 + 1.6 * rp})`;
-  o.lock.style.opacity = (1 - clamp01((k - 0.3) / 0.5)).toFixed(3); o.lock.style.transform = `scale(${1 + 0.05 * e})`;
+  o.lock.style.opacity = (1 - clamp01((k - 0.55) / 0.45)).toFixed(3); o.lock.style.transform = `scale(${1 + 0.05 * e})`;
   /* the chat grows out of the banner's rectangle */
   const ci = (x) => (x * (1 - e)).toFixed(2);
   o.chat.style.clipPath = `inset(${ci(420)}px ${ci(22)}px ${ci(640)}px ${ci(22)}px round ${ci(40)}px)`;
-  o.chat.style.opacity = clamp01((k - 0.1) / 0.3).toFixed(3);
+  o.chat.style.opacity = clamp01(k / 0.5).toFixed(3);                           /* the card cross-fades over the banner; its content comes in while it grows: no empty card */
+  const cc = clamp01((k - 0.2) / 0.5).toFixed(3); for (const ch of o.chat.children) ch.style.opacity = cc;
   /* the thread */
   const startT = (b) => Math.max(b.t - (b.typing || 0), oAt + 0.25);
   o.bubs.forEach((el, i) => {
@@ -142,9 +144,7 @@ const CSS = `
 #phPhoto { width: 120px; height: 120px; border-radius: 50%; overflow: hidden; border: 5px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,0.25); } #phPhoto svg { width: 100%; height: 100%; display: block; }
 #phName { font-size: 38px; line-height: 1; color: #17171c; font-weight: 800; }
 #phHome { position: absolute; left: 50%; bottom: 22px; width: 200px; height: 8px; margin-left: -100px; border-radius: 4px; background: rgba(23,23,28,0.35); }
-#phHandBack { position: absolute; inset: 0; } #phHandBack .phF { position: absolute; left: 600px; width: 100px; height: 116px; border-radius: 58px; background: #d6a37f; border: 6px solid #17171c; }
-#phPalm { position: absolute; left: 90px; top: 1010px; width: 500px; height: 560px; border-radius: 200px; background: #c89470; border: 6px solid #17171c; }
-#phThumb { position: absolute; left: -64px; top: 1000px; width: 290px; height: 112px; border-radius: 56px; background: #d6a37f; border: 6px solid #17171c; transform: rotate(-26deg); transform-origin: 20% 50%; box-shadow: 0 12px 24px rgba(0,0,0,0.3); }
+#phHandBack, #phThumb { position: absolute; left: 0; top: 0; width: 660px; height: 1280px; overflow: visible; pointer-events: none; }
 #phThread { position: absolute; left: 36px; right: 36px; top: 310px; display: flex; flex-direction: column; gap: 22px; }
 .phB { display: none; align-self: flex-start; max-width: 480px; padding: 26px 34px; background: #fff; border: 4px solid #17171c; border-radius: 40px 40px 40px 10px; font-size: 50px; font-weight: 700; color: #17171c; line-height: 1.12; box-shadow: 0 10px 22px rgba(60,40,20,0.2); }
 .phB.me { align-self: flex-end; background: #17171c; color: #fff; border-radius: 40px 40px 10px 40px; }
@@ -250,16 +250,18 @@ const fmt = (n) => Math.round(n).toLocaleString("en-US");
 export function applyNumber(o, T, N) {
   const on = N && T >= N.t0 && T < N.t1; o.nm.style.opacity = on ? 1 : 0; if (!on) return;
   bgStyle(o.nmBg, T, "rgba(20,30,60,0.42)", "rgba(120,160,255,0.25)", "rgba(255,255,255,0.10)");
-  const u = clamp01((T - N.raceAt) / (N.landAt - N.raceAt)), e = 1 - Math.pow(1 - u, 4), v = N.from + (N.to - N.from) * e;
+  const u = clamp01((T - N.raceAt) / (N.landAt - N.raceAt)), e = (1 - Math.pow(1 - u, 4)) * (u < 0.15 ? (u / 0.15) ** 2 * (3 - 2 * u / 0.15) : 1), v = N.from + (N.to - N.from) * e;
+  const em = (n) => fmt(n).split("").reduce((w, c) => w + (c === "," ? 0.3 : 0.6), 0), w0 = em(N.from), w1 = em(N.to), lz = T - N.landAt;
+  o.nmDigits.style.minWidth = (w0 + (w1 - w0) * easeInOut(lz / 0.3)) + "em"; o.nmDigits.style.justifyContent = "flex-end";   /* digits are right-aligned in a box that starts as wide as the first number, so a digit dropping off moves nothing; the box narrows after the landing */
   o.nmDigits.innerHTML = fmt(v).split("").map((c) => `<b class="${c === "," ? "c" : ""}">${c}</b>`).join("");
   o.nmDigits.style.color = `rgb(${Math.round(23 + (216 - 23) * e)},${Math.round(23 + (54 - 23) * e)},${Math.round(28 + (58 - 28) * e)})`;
-  const landed = T - N.landAt, k = landed >= 0 ? back(landed / 0.3) : 0, pop = landed >= 0 && landed < 0.3 ? 1 + 0.08 * (1 - easeOut(landed / 0.3)) : 1;
+  const landed = T - N.landAt, k = landed >= 0 ? back(landed / 0.3) : 0, pop = landed >= 0 && landed < 0.3 ? 1 + 0.08 * Math.sin(Math.PI * landed / 0.3) : 1;   /* a swell and back, not a one-frame pop */
   const shake = landed >= 0 ? Math.sin(landed * 60) * 9 * Math.exp(-landed * 9) : (u > 0 && u < 1 ? Math.sin(T * 70) * 3 * (1 - u) : 0);
   const en = back((T - N.t0) / 0.3), drift = 1 + 0.025 * Math.sin((T - N.t0) * 1.6);
   o.nmCard.style.transform = `translateX(${shake}px) scale(${(0.7 + 0.3 * en) * pop * drift}) rotate(${Math.sin(T * 1.2) * 0.7}deg)`;
   o.nmIcon.style.display = "inline-block"; o.nmIcon.style.transform = `rotate(${Math.sin(T * 2.2) * 6 + (1 - e) * u * 180}deg)`;
   o.nmPill.textContent = "−" + fmt(N.from - N.to);
-  o.nmPill.style.opacity = landed >= 0 ? 1 : 0;
+  o.nmPill.style.opacity = clamp01(landed / 0.15);
   o.nmPill.style.transform = `translateX(-50%) scale(${0.4 + 0.6 * k}) rotate(${(1 - k) * -10 + Math.sin(T * 2) * 1.2}deg)`;
 }
 
@@ -267,11 +269,11 @@ export function applyNumber(o, T, N) {
    the four event thumbnails slide and pulse in turn behind the portrait card, each with a cost chip. */
 export function applyMe(o, T, M) {
   const on = M && T >= M.t0 && T < M.t1; o.me.style.opacity = on ? 1 : 0; if (!on) return;
-  bgStyle(o.meBg, T, "rgba(40,24,64,0.42)", "rgba(255,150,120,0.22)", "rgba(255,255,255,0.08)");
+  bgStyle(o.meBg, T, "rgba(40,24,64,0.26)", "rgba(255,150,120,0.22)", "rgba(255,255,255,0.08)");
   const u = clamp01((T - M.t0) / (M.t1 - M.t0)), d = M.damage[0] + (M.damage[1] - M.damage[0]) * easeInOut(u);
   o.marks.forEach((g) => { const th = +g.dataset.th, a = clamp01((d - th) / 0.07); g.style.opacity = a; g.style.transformBox = "fill-box"; g.style.transformOrigin = "center"; g.style.transform = a > 0 && a < 1 ? `scale(${1 + 0.15 * (1 - a)})` : "none"; });
-  const en = back((T - M.t0) / 0.35), flo = Math.sin((T - M.t0) * 1.5);
-  o.meCard.style.transform = `translateY(${(1 - en) * 120 + flo * 10}px) rotate(${Math.sin((T - M.t0) * 1.1) * 1.4 - 1}deg) scale(${(0.9 + 0.1 * en) * (1 + 0.012 * flo)})`;
+  const en = back2((T - M.t0) / 0.5), flo = Math.sin((T - M.t0) * 1.5);
+  o.meCard.style.transform = `translateY(${(1 - en) * 60 + flo * 10}px) rotate(${Math.sin((T - M.t0) * 1.1) * 1.4 - 1}deg) scale(${(0.9 + 0.1 * en) * (1 + 0.012 * flo)})`;
   const cyc = M.cycle || 0.7, p = (T - M.t0) / cyc, act = Math.floor(p) % 4, fr = p - Math.floor(p), costs = M.costs || ["−1", "−38", "−95", "−120"];
   o.band.style.transform = `translateX(${Math.sin(p * 1.2) * 10}px)`;
   o.thumbs.forEach((th, i) => {
@@ -287,10 +289,11 @@ export function applyMe(o, T, M) {
 export function applyCalendar(o, T, C) {
   const on = C && T >= C.t0 && T < C.t1; o.ca.style.opacity = on ? 1 : 0; if (!on) return;
   bgStyle(o.caBg, T, "rgba(30,90,76,0.40)", "rgba(255,240,170,0.25)", "rgba(255,255,255,0.09)");
-  const en = back((T - C.t0) / 0.35), dd = C.drawDur || 0.5, at = C.drawAt ?? C.t0 + 0.6, dr = easeInOut((T - at) / dd);
+  const en = C.flip ? 1 : back2((T - C.t0) / 0.5), dd = C.drawDur || 0.5, at = C.drawAt ?? C.t0 + 0.6, dr = easeInOut((T - at) / dd);
+  const fl = C.flip ? Math.sin(Math.PI * clamp01((T - C.t0) / 0.3)) : 0;                      /* a flip: the leaf dips and returns over 0.3 s (the card does not re-enter) */
   o.caPath.setAttribute("stroke-dasharray", "1 1"); o.caPath.setAttribute("stroke-dashoffset", (1 - dr).toFixed(4));
-  const sway = Math.sin((T - C.t0) * 1.3), pulse = T > at + dd ? 1 + 0.025 * Math.sin((T - at - dd) * 7) : 1;
-  o.caWrap.style.transform = `translateY(${(1 - en) * 160 + sway * 8}px) rotate(${sway * 1.1}deg) scale(${(0.85 + 0.15 * en) * (1 + 0.015 * Math.sin((T - C.t0) * 1.7))})`;
+  const sway = Math.sin((T - (C.phase0 ?? C.t0)) * 1.3), pulse = T > at + dd ? 1 + 0.025 * Math.sin((T - at - dd) * 7) : 1;
+  o.caWrap.style.transform = `translateY(${(1 - en) * 70 + sway * 8}px) rotate(${sway * 1.1}deg) scale(${(0.85 + 0.15 * en) * (1 + 0.015 * Math.sin((T - (C.phase0 ?? C.t0)) * 1.7))}, ${(0.85 + 0.15 * en) * (1 + 0.015 * Math.sin((T - (C.phase0 ?? C.t0)) * 1.7)) * (1 - 0.3 * fl)})`;
   o.caWord.style.transform = `scale(${pulse})`;
 }
 
