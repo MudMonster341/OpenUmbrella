@@ -14,6 +14,9 @@ or an `ERRORS.md` entry.
 
 ## 1. Run it on every render, before anyone else sees it
 
+**Normally through `python tools/ship/ship.py films/<slug> vN`**, which runs it quietly after the render and mux, tiles the frames at every failure's time
+(`review/<name>_failures.png`), and makes the contact sheet and the Instagram file. Run it by hand only to re-review:
+
 ```bash
 tools/reelkit/.venv/Scripts/python.exe tools/autoreview/autoreview.py films/<slug> --video films/<slug>/renders/<file>.mp4
 ```

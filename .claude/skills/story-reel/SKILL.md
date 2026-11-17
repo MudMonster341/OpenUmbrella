@@ -26,7 +26,7 @@ Then read the template: `market_research_and_intelligence/story/STORY_TEMPLATE.m
 | 6 | **Build** | `index.html` from the style document | `npx hyperframes snapshot` at every line |
 | 7 | **Frames** | snapshots | `node check_direction.mjs` + `check_bus.mjs` (bare, never piped), **`film-critic` agent**, then **the user looks** |
 | 8 | **Sound** | `sound/synth.py` + `music.py`, then `sound/master.py` | −14 LUFS, LRA ≤ 5, master **Linear**, measured |
-| 9 | **Render** | MP4 in `renders/`, **60 fps** (`--fps 60`) | ffprobe; mux without `-shortest`, check both durations |
+| 9 | **Render** | `python tools/ship/ship.py films/<slug> vN`: the gates, the 60 fps render (outside the lab), the mux, the auto-review, the failure frames, the contact sheet, `<name>_ig.mp4` (Instagram, checked by `tools/ship/ig_check.py`) and `<name>_phone.mp4` | its summary; then LOOK at the failure tile and the contact sheet. One span: `--start S --end E --fps 30` |
 | 10 | **Final** | STORY.md §7 | **`auto-review` skill (must pass)** + `filmcheck` + **`film-critic`** + **the user watches with sound** |
 
 ## Rules that are not negotiable
