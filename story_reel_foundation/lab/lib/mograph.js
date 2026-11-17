@@ -67,7 +67,7 @@ export function applyPhone(o, T, P) {
   const u = (T - P.t0) / (P.t1 - P.t0), s = P.push[0] + (P.push[1] - P.push[0]) * easeInOut(u);
   let bx = 0, by = 0, br = 0, buzzAmt = 0;
   const buzzes = [...(P.buzz || (P.bubbles || []).filter((b) => b.side !== "me").map((b) => b.t)), nAt, nAt + 0.42];
-  for (const b of buzzes) { const d = T - b; if (d >= 0 && d < 0.5) { const a = (1 - d / 0.5); buzzAmt = Math.max(buzzAmt, a); bx += Math.sin(d * 210) * 13 * a; by += Math.cos(d * 170) * 6 * a; br += Math.sin(d * 150 + 1) * 2.2 * a; } }
+  for (const b of buzzes) { const d = T - b; if (d >= 0 && d < 0.5) { const a = (1 - d / 0.5); buzzAmt = Math.max(buzzAmt, a); bx += Math.sin(d * 58) * 6 * a; by += Math.cos(d * 47) * 3 * a;   /* ~9 Hz, 6 px: at 33 Hz and 13 px the buzz aliased into judder at 60 fps (V7, v4) */ br += Math.sin(d * 150 + 1) * 2.2 * a; } }
   const swayX = Math.sin(T * 1.3) * 9, swayY = Math.sin(T * 0.9 + 1) * 11, swayR = Math.sin(T * 1.1 + 2) * 1.3;   /* held in a hand: it is never perfectly still (filmcheck M1, 2026-11-16) */
   o.phone.style.transform = `translate(${bx + swayX}px, ${by + swayY}px) rotateX(18deg) rotateZ(${-6 + br + swayR}deg) scale(${s})`;
   o.shadow.style.transform = `translate(${bx * 0.6 + 40}px, ${60 + by * 0.6}px) rotateX(18deg) rotateZ(-6deg) scale(${s * 0.97})`;
@@ -171,6 +171,13 @@ const CSS = `
 #caCircle { position: absolute; left: 0; top: 190px; width: 800px; height: 260px; overflow: visible; }
 #enCard { left: 90px; top: 640px; width: 900px; padding: 20px 0; text-align: center; background: #ffd84a; font-size: 215px; line-height: 1.1; color: #17171c; letter-spacing: 2px; font-weight: 800; }
 #enSub { position: absolute; left: 50%; top: 1130px; padding: 18px 44px; background: #fff; border: 7px solid #17171c; border-radius: 999px; font-size: 56px; font-weight: 700; color: #17171c; white-space: nowrap; }
+#chI { pointer-events: none; }
+#chCap { position: absolute; left: 50%; top: 470px; padding: 14px 46px; background: #fff; border: 7px solid #17171c; border-radius: 999px; font-size: 54px; line-height: 1; letter-spacing: 6px; color: #17171c; white-space: nowrap; box-shadow: 0 14px 30px rgba(0,0,0,0.3); }
+.chC { position: absolute; top: 170px; width: 470px; height: 270px; background: #fff; border: 9px solid #17171c; border-radius: 52px; box-shadow: 0 26px 54px rgba(0,0,0,0.38); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; will-change: transform; }
+.chT { font-size: 80px; line-height: 1; color: #17171c; font-weight: 800; white-space: nowrap; }
+.chS { font-size: 58px; line-height: 1; font-weight: 800; color: #fff; background: #d8363a; border: 6px solid #17171c; border-radius: 26px; padding: 8px 28px; }
+.chK { position: absolute; right: -34px; top: -40px; width: 116px; height: 116px; border-radius: 50%; background: #ffd84a; border: 8px solid #17171c; opacity: 0; display: flex; align-items: center; justify-content: center; }
+.chK svg { width: 70px; height: 70px; }
 #enArr { position: absolute; left: 490px; top: 1330px; width: 100px; height: 100px; }
 `;
 const HOURGLASS = `<svg viewBox="0 0 40 56" width="120" height="168"><path d="M6 4h28M6 52h28M10 4c0 14 8 16 10 24-2 8-10 10-10 24M30 4c0 14-8 16-10 24 2 8 10 10 10 24" fill="none" stroke="#17171c" stroke-width="4.5" stroke-linecap="round"/><path d="M13 44h14c-2-6-5-8-7-9-2 1-5 3-7 9z" fill="#17171c"/></svg>`;
@@ -234,12 +241,16 @@ function makeMore(wrap) {
   const caWrap = mk(ca, "caWrap", "mgBox", `<div id="caHead"><i style="left:150px"></i><i style="left:630px"></i></div><div id="caWord">FRIDAY</div>
     <div id="caGrid">${Array.from({ length: 28 }, (_, i) => `<i${i === 18 ? ' class="on"' : ""}></i>`).join("")}</div>
     <svg id="caCircle" viewBox="0 0 800 260"><path id="caPath" pathLength="1" d="M120 150C90 60 300 14 430 22C640 30 770 84 745 150C720 232 480 252 330 246C180 240 60 196 78 108C90 56 170 34 250 26" fill="none" stroke="#d8363a" stroke-width="14" stroke-linecap="round"/></svg>`);
+  /* the choice */
+  const ch = mk(wrap, "chI", "mgI"); const chCap = mk(ch, "chCap", "ov", "CHOOSE");
+  const chCards = [0, 1].map(() => { const c = mk(ch, "", "chC"); const t = mk(c, "", "chT"); const sb = mk(c, "", "chS"); const k = mk(c, "", "chK", `<svg viewBox="0 0 70 70"><path d="M14 37l15 15 28-32" fill="none" stroke="#17171c" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>`); return { c, t, sb, k }; });
   /* the end card */
   const en = mk(wrap, "enI", "mgI"); const enBg = mk(en, "", "mgBg"); const enRays = mk(en, "", "mgBg");
   const enCard = mk(en, "enCard", "mgBox ov", "PART 2"); const enSub = mk(en, "enSub", "ov", "see what happens next");
   const enArr = mk(en, "enArr", "", `<svg viewBox="0 0 100 100"><path d="M18 36l32 32 32-32" fill="none" stroke="#ffd84a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
   return { nm, nmBg, nmCard, nmIcon: nm.querySelector("#nmIcon"), nmDigits: nm.querySelector("#nmDigits"), nmPill,
            me, meBg, band, thumbs, meCard, marks, ca, caBg, caWrap, caPath: ca.querySelector("#caPath"), caWord: ca.querySelector("#caWord"),
+           ch, chCap, chCards,
            en, enBg, enRays, enCard, enSub, enArr };
 }
 
@@ -295,6 +306,31 @@ export function applyCalendar(o, T, C) {
   const sway = Math.sin((T - (C.phase0 ?? C.t0)) * 1.3), pulse = T > at + dd ? 1 + 0.025 * Math.sin((T - at - dd) * 7) : 1;
   o.caWrap.style.transform = `translateY(${(1 - en) * 70 + sway * 8}px) rotate(${sway * 1.1}deg) scale(${(0.85 + 0.15 * en) * (1 + 0.015 * Math.sin((T - (C.phase0 ?? C.t0)) * 1.7))}, ${(0.85 + 0.15 * en) * (1 + 0.015 * Math.sin((T - (C.phase0 ?? C.t0)) * 1.7)) * (1 - 0.3 * fl)})`;
   o.caWord.style.transform = `scale(${pulse})`;
+}
+
+/* choice: { t0, t1, pickAt, options: [{ text, sub? }, { text, sub? }], pick: 0|1, caption?: "CHOOSE" }
+   no background (translucent over the live world). Card 0 enters at t0, card 1 0.25 s later (0.5 s soft entrance); while both are up they sway and breathe slowly
+   (time to think); at pickAt (eased over 0.45 s) the picked card swells, gets an amber glow and a tick, the other dims and drifts away; held to t1, the layer fades over its last 0.25 s. */
+export function applyChoice(o, T, C) {
+  const on = C && T >= C.t0 && T < C.t1; o.ch.style.opacity = on ? 1 : 0; if (!on) return;
+  const dt = T - C.t0, sel = easeInOut((T - C.pickAt) / 0.45), out = easeInOut((C.t1 - T) / 0.25);
+  o.ch.style.opacity = out;
+  const ce = easeOut(dt / 0.4); o.chCap.textContent = C.caption ?? "CHOOSE"; o.chCap.style.display = o.chCap.textContent ? "" : "none";   /* an empty caption hides the header (it made 8 words with the spoken caption) */
+  o.chCap.style.opacity = ce * (1 - 0.8 * sel); o.chCap.style.transform = `translateX(-50%) translateY(${(1 - ce) * -30}px)`;
+  o.chCards.forEach((k, i) => {
+    const op = C.options[i], picked = i === C.pick, e = easeOut((dt - 0.25 * i) / 0.5), lefts = [45, 565];   /* side by side in the top band, so his face and the doors stay clear below (they covered his face: v5, 2026-11-17) */
+    k.t.textContent = op.text; k.sb.textContent = op.sub || ""; k.sb.style.display = op.sub ? "block" : "none";
+    const sway = Math.sin(dt * 1.5 + i * 2.1) * (1 - sel), breathe = 1 + 0.014 * Math.sin(dt * 1.9 + i * 1.3) * (1 - sel);
+    const sc = (0.88 + 0.12 * e) * breathe * (picked ? 1 + 0.06 * sel : 1 - 0.1 * sel);
+    const ty = (1 - e) * -80 + sway * 9 + (picked ? 0 : 40 * sel), tx = picked ? (i ? -1 : 1) * 30 * sel : (i ? 1 : -1) * 40 * sel;
+    k.c.style.left = lefts[i] + "px";
+    k.c.style.opacity = e * (picked ? 1 : 1 - 0.65 * sel);
+    k.c.style.transform = `translate(${tx}px, ${ty}px) rotate(${sway * 0.8 + (picked ? 0 : (i ? 3 : -3) * sel)}deg) scale(${sc})`;
+    k.c.style.background = picked ? `rgb(255,${Math.round(255 - 39 * sel)},${Math.round(255 - 181 * sel)})` : "#fff";
+    k.c.style.boxShadow = picked ? `0 26px 54px rgba(0,0,0,0.38), 0 0 ${Math.round(110 * sel)}px ${Math.round(34 * sel)}px rgba(255,200,60,${0.85 * sel})` : "0 26px 54px rgba(0,0,0,0.38)";
+    k.k.style.opacity = picked ? clamp01((T - C.pickAt - 0.1) / 0.2) : 0;
+    k.k.style.transform = `scale(${picked ? 0.3 + 0.7 * back((T - C.pickAt - 0.1) / 0.35) : 0}) rotate(${(1 - sel) * -20}deg)`;
+  });
 }
 
 /* end card: { t0, t1 } "PART 2" slams in, the line settles under it, an arrow bobs. Always moving. */

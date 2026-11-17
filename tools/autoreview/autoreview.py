@@ -179,7 +179,8 @@ def picture(plan, video, info):
           "mean luma >= 20 on every frame", "ERR-0014 (NaN normals blacked out 1.0-1.4 s)")
 
     # cuts: where the plan says, and nowhere else
-    bounds = [s["t0"] for s in plan["shots"][1:]]
+    bounds = [s["t0"] for s in plan["shots"][1:] if not s.get("cont")]
+    conts = [s["t0"] for s in plan["shots"][1:] if s.get("cont")]   # same camera on both sides: no cut to find, by design
     hs = [(h["at"], h["at"] + h["dur"]) for h in plan.get("hitstop", [])]
     near_hit = lambda x: abs(x - plan["impact"]) < 0.4
     loc = np.array([np.median(d[max(1, i - 6):i + 7]) for i in range(n)])
@@ -190,8 +191,8 @@ def picture(plan, video, info):
     missing = [b for b in bounds if not any(abs(c - b) <= 2.5 / fps for c in cuts)]
     jumps = picture_jumps(small, fps)
     extra = [round(c, 3) for c in jumps if not any(abs(c - b) <= 3 / fps for b in bounds) and not near_hit(c)]
-    check("V5", "Every planned cut is in the film", not missing, f"{len(bounds) - len(missing)}/{len(bounds)} found" + (f"; missing at {missing}" if missing else ""),
-          "each shot boundary within 2.5 frames", "reel-builder skill: cut ON the word; direction.js keys shots to words")
+    check("V5", "Every planned cut is in the film", not missing, f"{len(bounds) - len(missing)}/{len(bounds)} found" + (f"; missing at {missing}" if missing else "") + (f"; {len(conts)} continuous by design at {conts}" if conts else ""),
+          "each shot boundary within 2.5 frames (a shot that starts on the previous shot's end camera is a continuation, not a cut)", "reel-builder skill: cut ON the word; direction.js keys shots to words")
     edge_bad = []
     for c in plan["captions"]:                                                   # a caption must never touch the frame edge
         i = int(round(c["t"] * fps)) + 1
@@ -251,6 +252,19 @@ def picture(plan, video, info):
     hot = [c for c in plan["captions"] if c.get("hot") and c["t"] < 3.0]
     check("H5", "The claim lands around 1.2-1.6 s, emphasised", any(0.9 <= c["t"] <= 1.7 for c in hot), ", ".join(f"{c['word']} {c['t']:.2f} s" for c in hot) or "no emphasised word before 3 s", "an emphasised word at 0.9-1.7 s", VIR + " #5", blocker=False)
 
+    washed = []                                                                 # V13: night shots keep real blacks (the haze lifted them, v4)
+    for s in plan["shots"]:
+        if s["kind"] != "world": continue
+        p5 = []
+        for u in (0.25, 0.5, 0.75):
+            img = frame_rgb(video, s["t0"] + u * (s["t1"] - s["t0"]))
+            if img is None: continue
+            L = img.mean(2); m = np.ones(L.shape, bool); m[120:165, :] = False      # the caption band excluded
+            p5.append(float(np.percentile(L[m], 5)))
+        if len(p5) >= 2 and sorted(p5)[len(p5) // 2] > 35: washed.append(f"shot {s['i']} ({s['t0']:.2f} s): blacks at {sorted(p5)[len(p5) // 2]:.0f}")
+    check("V13", "No washed-out shots (blacks stay dark)", not washed, "; ".join(washed[:6]) or "every world shot keeps real blacks",
+          "darkest 5% of the picture <= 35 (median of 3 samples per world shot)",
+          "the user 2026-11-17: 'lighting at all points ... depth'; v4's haze lifted blacks to 68-74 in the shop and the vision (v3: 5 shots over, v4: 5)")
     plain = []
     for s in plan["shots"]:
         samples = []
@@ -263,6 +277,25 @@ def picture(plan, video, info):
     check("V11", "Every shot has a real background (never a plain colour)", not plain, "; ".join(plain[:6]) or "every shot's border shows the world",
           ">= 11 colours and detail >= 4 in the frame border (median of 3 samples per shot)",
           "the user 2026-11-16: 'no background should be only a plain color ... the background should be directed first'")
+    # V12 life: what moves in the background beyond the camera's own move (the user, 2026-11-17: "add some sort of life everywhere").
+    # Each pair of frames 0.25 s apart is aligned by its global shift, then the frame border's residual change is measured.
+    lifeless = []
+    bmask = np.zeros(mid.shape[1:], bool); bmask[19:119, :20] = True; bmask[19:119, -20:] = True; bmask[165:188, :] = True
+    for s in plan["shots"]:
+        if s["kind"] != "world" or s["t1"] - s["t0"] < 1.0: continue
+        res_ = []
+        for a in np.arange(s["t0"] + 0.1, s["t1"] - 0.35, 0.25):
+            i0, i1 = int(a * fps), int((a + 0.25) * fps)
+            if i1 >= n: break
+            A, Bf = mid[i0], mid[i1]
+            F = np.fft.fft2(A - A.mean()) * np.conj(np.fft.fft2(Bf - Bf.mean())); F /= np.abs(F) + 1e-9
+            r = np.abs(np.fft.ifft2(F)); dy, dx = np.unravel_index(r.argmax(), r.shape)
+            Bs = np.roll(np.roll(Bf, dy, 0), dx, 1)
+            res_.append(float(np.abs(A - Bs)[bmask].mean()))
+        if res_ and np.median(res_) < 1.5: lifeless.append(f"shot {s['i']} ({s['t0']:.2f} s): residual {np.median(res_):.2f}")
+    check("V12", "Life in the background (beyond the camera's move)", not lifeless, "; ".join(lifeless[:6]) or "every world shot has independent motion",
+          "median residual >= 1.5 in the frame border (PROVISIONAL threshold, calibrating on v3 vs v4)",
+          "the user 2026-11-17: 'add some sort of life if possible everywhere'", blocker=False)
     bad = [f"shot {p['shot']} {p['luma']}" for p in per_shot if not 40 <= p["luma"] <= 175]
     check("V10", "Every shot exposed (night allowed)", not bad, "; ".join(bad) or f"{min(p['luma'] for p in per_shot)}-{max(p['luma'] for p in per_shot)}",
           "mean luma 40-175 per shot", "GOAL.md exposure; 'never flat lighting' (the user 2026-11-14)", blocker=False)

@@ -34,12 +34,19 @@ export function project(cam, p) {   /* -> { x, y } in NDC (-1..1), or null behin
   return { x: dot(d, r) / z / (th * ASPECT), y: dot(d, up) / z / th, z };
 }
 export function evaluate(shot, log = false) {
-  const fail = [], sqz = (tw) => clamp01((tw - SQ.t0) / (SQ.t1 - SQ.t0));
+  const fail = [], KQ = SQ.keys ?? [[SQ.t0, SQ.z0], [SQ.t1, SQ.z1]];
+  const sqZ = (tw) => { let k = 0; while (k < KQ.length - 2 && tw > KQ[k + 1][0]) k++; const [ta, za] = KQ[k], [tb, zb] = KQ[k + 1], u = clamp01((tw - ta) / (tb - ta)); return za + (zb - za) * u * u * (3 - 2 * u); };
+  const tIt = T.captions.find((c) => c.line === "L06" && c.word === "RUNS").t;   /* the swerve starts here (direction.js T_IT) */
+  /* the user, 2026-11-17: the squirrel came too early and from the wrong side. It must come from the FAR side (z > 4), appear at most
+     1 s before the swerve, and be in the bus's lane (z -0.2..2.2) when the swerve starts */
+  if (!(KQ[0][1] > 4)) fail.push(`the squirrel starts at z ${KQ[0][1]}, not on the far side (z > 4)`);
+  if (KQ[0][0] < tIt - 1.0) fail.push(`the squirrel appears ${(tIt - KQ[0][0]).toFixed(2)} s before the swerve (at most 1.0)`);
+  { const zz = sqZ(tIt); if (zz < -0.2 || zz > 2.2) fail.push(`at the swerve the squirrel is at z ${zz.toFixed(2)}, not in the bus's lane`); }
   const worst = { squirrel: 0, bus: 0, shelter: 0 };
   const t0 = Math.max(shot.t0, tSud - 1e-6);
   for (let T_ = shot.t0; T_ < shot.t1 - 1e-6; T_ += 0.05) {
     const tw = worldT(T_), cam = camAt(shot, T_), pts = [];
-    if (tw >= SQ.t0 && tw <= SQ.t1) { const z = SQ.z0 + (SQ.z1 - SQ.z0) * sqz(tw); pts.push(["squirrel", [SQ.x, 0.05, z]], ["squirrel", [SQ.x, 0.35 * (SQ.scale ?? 1), z]]); }
+    if (tw >= KQ[0][0] && tw <= KQ[KQ.length - 1][0]) { const z = sqZ(tw); pts.push(["squirrel", [SQ.x, 0.05, z]], ["squirrel", [SQ.x, 0.35 * (SQ.scale ?? 1), z]]); }
     if (T_ >= Math.max(tSud, IMP - 3.0) - 1e-6 && T_ <= IMP + 1e-6) {   /* the last 3 s (~18 m) before the hit: at a steady 6 m/s the bus comes from far away (v9, 2026-11-17) */ const p = busPose(tw); for (const lz of [-1.25, 1.25]) for (const ly of [0.3, 2.2]) pts.push(["bus", bw(p, 3.1, ly, lz)]); }
     if (T_ >= IMP - 1 && T_ <= IMP + 1) for (const x of [-1.55, 1.95]) pts.push(["shelter", [x, 2.4, -1.3]]);
     for (const [what, p] of pts) {

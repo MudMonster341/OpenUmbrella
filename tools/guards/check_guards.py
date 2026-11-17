@@ -11,6 +11,8 @@ G2  Every model in the caches on this machine is on tools/guards/approved_models
 G3  No working branch can reach GitHub: the pre-push hook is installed and refuses everything but code-only (rule 10).
 G4  The auto-reviewer's self-tests pass (tools/autoreview/selftest.py): its checks measure what they claim to (ERR-0017's
     sibling: the first reviewer measured today's stems instead of the video, and peaks instead of loudness).
+G10 Every Claude Code hook names its script through $CLAUDE_PROJECT_DIR, never a relative path (ERR-0021).
+G11 No HyperFrames composition folder holds rendered video: renders go outside it, or they are bundled into every render (ERR-0022).
 
 Runs before every publish (tools/publish/publish_code.py) and can run any time.
 """
@@ -134,8 +136,77 @@ def g7():
     res("G7", not bad, f"{len(bad)} media files tracked outside the evidence folders: " + ", ".join(bad[:5]) if bad else "no stray media tracked in git")
 
 
+def g8():
+    """no stray control characters in our source: a shell heredoc turned an escaped \\n or \\b in a regex into a raw newline or a
+    backspace three times on 2026-11-17 (check_guards.py once, check_direction.mjs twice), silently breaking or disabling a check"""
+    bad = []
+    for p in ROOT.rglob("*"):
+        if p.suffix not in (".py", ".js", ".mjs", ".html", ".md", ".json") or SKIP.search(str(p.relative_to(ROOT))): continue
+        try: text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError: continue
+        m = re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", text)
+        if m: bad.append(f"{p.relative_to(ROOT)}:{text.count(chr(10), 0, m.start()) + 1} (0x{ord(m.group(0)):02x})")
+    res("G8", not bad, "control characters in: " + ", ".join(bad[:5]) if bad else "no stray control characters in our source")
+
+
+def g9():
+    """the mixed sound matches the current timeline: on 2026-11-17 the timing gained beats and v4 was rendered and muxed with the
+    old 48.05 s master (the picture ran 48.72 s; the pre-hit silence landed on sound). Run before every mux"""
+    import json, wave
+    pairs = [(tj, tj.parents[1] / "sound" / "out" / "master.wav") for tj in ROOT.glob("films/*/voice/scene01_timing.json")]   # any film: no film is named in code (the publish filter)
+    pairs = [(tj, mw) for tj, mw in pairs if mw.exists()]
+    if not pairs: res("G9", True, "no timeline or master on this machine (nothing to compare)"); return
+    msgs, ok = [], True
+    for tj, mw in pairs:
+        end = json.loads(tj.read_text(encoding="utf-8"))["end"]
+        with wave.open(str(mw)) as w: dur = w.getnframes() / w.getframerate()
+        stale = mw.stat().st_mtime < tj.stat().st_mtime
+        ok = ok and abs(dur - end) <= 0.02 and not stale
+        msgs.append(f"master.wav {dur:.3f} s vs timeline {end:.3f} s" + ("; master is OLDER than the timeline: re-run synth.py and master.py" if stale else ""))
+    res("G9", ok, "; ".join(msgs))
+
+
+def g10():
+    """every Claude Code hook that runs a file of ours names it through $CLAUDE_PROJECT_DIR (ERR-0021, 2026-11-17: a relative
+    'python tools/guards/doc_freshness.py' failed in a session whose shell had moved into story_reel_foundation/lab; python's
+    'can't open file' exits 2, which BLOCKS every prompt in that session)"""
+    import json
+    bad = []
+    for name in ("settings.json", "settings.local.json"):
+        f = ROOT / ".claude" / name
+        if not f.exists(): continue
+        cmds = []
+        def walk(o):
+            if isinstance(o, dict):
+                if o.get("type") == "command" and isinstance(o.get("command"), str): cmds.append(o["command"])
+                for v in o.values(): walk(v)
+            elif isinstance(o, list):
+                for v in o: walk(v)
+        walk(json.loads(f.read_text(encoding="utf-8")))
+        for c in cmds:
+            for tok in re.findall(r"[^\s\"']+\.(?:py|sh|mjs|js|ps1)\b", c):
+                if not re.match(r"(\$\{?CLAUDE_PROJECT_DIR\}?|[A-Za-z]:[\\/]|/|~)", tok):
+                    bad.append(f".claude/{name}: {tok}")
+    res("G10", not bad, "relative hook paths (break when the shell leaves the root): " + ", ".join(bad) if bad
+        else "every hook names its script through $CLAUDE_PROJECT_DIR")
+
+
+def g11():
+    """no composition folder (a folder with an index.html under story_reel_foundation/ or films/) holds video over 20 MB in total:
+    HyperFrames bundles the whole folder as source media, so old renders saved inside it (1.4 GB in lab/renders, 2026-11-17)
+    slowed every render and finally refused partial ones (PLAN_TOO_LARGE). ERR-0022"""
+    bad, old = [], []
+    for idx in list((ROOT / "story_reel_foundation").glob("*/index.html")) + list((ROOT / "films").glob("*/index.html")):
+        d = idx.parent
+        mb = sum(f.stat().st_size for f in d.rglob("*") if f.suffix.lower() in (".mp4", ".mov", ".webm", ".mkv") and "node_modules" not in f.parts) / 1e6
+        if mb > 20: (bad if d.parts[-2] == "story_reel_foundation" else old).append(f"{d.relative_to(ROOT).as_posix()} ({mb:.0f} MB)")
+    if bad: res("G11", False, "video inside a composition folder (move it to films/<slug>/renders/): " + ", ".join(bad))
+    elif old: res("G11", False, "older films keep renders inside their own composition (slows their renders; not moved): " + ", ".join(old), warn=True)
+    else: res("G11", True, "no rendered video inside any composition folder")
+
+
 def main():
-    g1(); g2(); g3(); g4(); g5(); g6(); g7()
+    g1(); g2(); g3(); g4(); g5(); g6(); g7(); g8(); g9(); g10(); g11()
     for gid, st, msg in results:
         print(f"{st}  {gid}  {msg}")
     fails = [r for r in results if r[1] == "FAIL"]

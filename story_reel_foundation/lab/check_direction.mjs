@@ -19,7 +19,9 @@ for (let T = 0; T < D.duration; T += 0.02) {
     n += 1;                                                         /* the sender's name in the banner / chat header ("ME") */
     if (T >= D.inserts.phone.bubble.t) n += words(D.inserts.phone.bubble.text);
   } else {
-    const st = [...t.stamp].reverse().find((x) => T >= x.t);
+    const chc = D.inserts.choice && T >= D.inserts.choice.t0 && T < D.inserts.choice.t1 ? D.inserts.choice : null;
+    if (chc) { chc.options.forEach((o) => (n += words(o.text) + words(o.sub || ""))); n += words(chc.caption ?? "CHOOSE"); }   /* the choice card's words (the badge is hidden then) */
+    const st = chc ? null : [...t.stamp].reverse().find((x) => T >= x.t);
     if (st) { n += 3; if (st.delta && T - st.t < 1.0) n += 1; }   /* the badge: the number + "DAYS LEFT" (2026-11-17 redesign) */
     const ck = [...(t.clock || [])].reverse().find((x) => T >= x[0]);
     if (ck) n += words(ck[1]);                                       /* the story clock on the badge's right, when used */
@@ -27,6 +29,12 @@ for (let T = 0; T < D.duration; T += 0.02) {
   at(T, t.banner).forEach((b) => (n += words(b.text)));
   if (n > worst) { worst = n; worstT = T; }
 }
+/* 0. no absolute times: every time is a word cue or a line's start + an offset, so a timing change moves it with its words
+      (an agent's absolute times broke twice when beats were added, 2026-11-17) */
+{ const src = (await import("node:fs")).readFileSync(new URL("./direction.js", import.meta.url), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  for (const m of src.matchAll(/\b(notifyAt|openAt|pickAt|t|t0|t1|at|tw0)\s*:\s*(\d+\.\d+)|crashAt\((\d+\.\d+)\)/g))
+    if (parseFloat(m[2] ?? m[3]) >= 10) bad(`absolute time ${m[1] ?? "crashAt"}: ${m[2] ?? m[3]} in direction.js (use W(line, WORD) or L.Lxx.t + offset)`); }
 console.log(`words on screen: worst ${worst} at ${worstT.toFixed(2)} s (limit ${MAX_WORDS})`);
 if (worst > MAX_WORDS) bad(`more than ${MAX_WORDS} words on screen at ${worstT.toFixed(2)} s`);
 

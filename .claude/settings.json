@@ -3,14 +3,14 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "python tools/guards/doc_freshness.py", "timeout": 20 }
+          { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/tools/guards/doc_freshness.py\"", "timeout": 20 }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python tools/guards/doc_freshness.py", "timeout": 20 }
+          { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/tools/guards/doc_freshness.py\"", "timeout": 20 }
         ]
       }
     ]

@@ -13,7 +13,8 @@
    The ground in world.js is flat, so the stairs cannot go below it: the underpass sits on a raised block ("the top" is
    y = 3.0, the bottom is y = 0) with a roofed passage at the bottom. From the stairs the difference cannot be seen. */
 import * as THREE from "three";
-import { rb, paving } from "./detail.js";
+import { rb, paving, halo as glare, pool, shaft, deco, wind, smokeTex } from "./detail.js";
+import { makePerson, pose } from "./people.js";
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -42,10 +43,11 @@ export function buildSets(parent, cfg, P = cfg.palette) {
   const SX = S.shopX ?? 28, ZF = -5.0;                       /* front face of the shop at z = ZF; depth 4 m back to -9 */
   const shop = new THREE.Group(); G.add(shop);
   const wallHex = 0xb9786a;
-  const wallM = std(new THREE.Color(wallHex).multiplyScalar(Math.max(dim, 0.6)).getHex(), 0.9);
+  const wallM = std(new THREE.Color(wallHex).multiplyScalar(night ? 0.4 : Math.max(dim, 0.6)).getHex(), 0.9);   /* 2026-11-17 (V13): at night the shop wall is dimmed like every other wall (it kept 0.6 and read washed out) */
   const trimM = std(new THREE.Color(0xe9e2d2).multiplyScalar(Math.max(dim, 0.5)).getHex(), 0.7);
   const woodM = std(0x8a5a36, 0.6), darkM = std(0x2b3038, 0.5, { metalness: 0.3 });
-  const inWall = std(0xe6d5b8, 0.95);                        /* the inside is lit from within, so it keeps its colour at night */
+  const inWall = std(night ? 0x8e7a5c : 0xe6d5b8, 0.95);       /* lit from within, but a mid-tone, not a cream wall: the lights then fall off into dark corners (V13) */
+  const inDark = std(night ? 0x4a3f33 : 0x8c8478, 0.95);       /* ceiling and side walls: the corners of the room go dark */                        /* the inside is lit from within, so it keeps its colour at night */
 
   /* a pavement strip in front, so the shop does not stand on the grass (world.js pavement ends at z = -4.2) */
   { const m = new THREE.Mesh(new THREE.PlaneGeometry(15, 0.85), new THREE.MeshStandardMaterial({ map: paving([6, 0.4]), roughness: 0.88 })); m.rotation.x = -Math.PI / 2; m.position.set(SX, 0.006, -4.6); m.receiveShadow = true; shop.add(m); }
@@ -62,7 +64,7 @@ export function buildSets(parent, cfg, P = cfg.palette) {
   box(shop, 0.2, 3.6, 4.0, wallM, SX - 3.5, 1.8, -7.0, 0.02);                          /* left wall */
   box(shop, 0.2, 3.6, 4.0, wallM, SX + 3.5, 1.8, -7.0, 0.02);                          /* right wall */
   box(shop, 7.0, 3.6, 0.2, inWall, SX, 1.8, -8.9, 0.02);                               /* back wall (inside colour) */
-  box(shop, 7.0, 0.2, 4.0, std(0x8c8478, 0.9), SX, 3.5, -7.0, 0.02);                   /* ceiling slab */
+  box(shop, 7.0, 0.2, 4.0, night ? std(0x2e2924, 0.95) : std(0x8c8478, 0.9), SX, 3.5, -7.0, 0.02);                   /* ceiling slab */
   box(shop, 7.2, 2.5, 4.2, wallM, SX, 4.95, -7.0, 0.05);                               /* the flat above */
   box(shop, 7.4, 0.2, 4.4, trimM, SX, 6.3, -7.0, 0.04);                                /* parapet cap */
   for (const dx of [-1.8, 1.8]) {                                                        /* two lit windows upstairs */
@@ -70,8 +72,8 @@ export function buildSets(parent, cfg, P = cfg.palette) {
     add(shop, new THREE.Mesh(new THREE.PlaneGeometry(0.88, 1.08), glow(night ? 0x5a4a38 : 0x2a3550)), SX + dx, 5.0, ZF + 0.2, false);
   }
   /* inside side faces, so the room does not look hollow */
-  add(shop, new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.4), inWall), SX - 3.39, 1.7, -7.0, false).rotation.y = Math.PI / 2;
-  add(shop, new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.4), inWall), SX + 3.39, 1.7, -7.0, false).rotation.y = -Math.PI / 2;
+  add(shop, new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.4), inDark), SX - 3.39, 1.7, -7.0, false).rotation.y = Math.PI / 2;
+  add(shop, new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.4), inDark), SX + 3.39, 1.7, -7.0, false).rotation.y = -Math.PI / 2;
   const floorTex = canvasTex(256, 256, (g, W, H) => { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? "#cfc6b4" : "#8c8a84"; g.fillRect(i * W / 4, j * H / 4, W / 4, H / 4); } }, [3, 2]);
   { const f = new THREE.Mesh(new THREE.PlaneGeometry(6.8, 3.8), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.35 })); f.rotation.x = -Math.PI / 2; f.position.set(SX, 0.03, -7.05); f.receiveShadow = true; shop.add(f); }
 
@@ -82,7 +84,7 @@ export function buildSets(parent, cfg, P = cfg.palette) {
   box(shop, 4.5, 0.06, 0.08, darkM, SX - 0.7, 2.42, ZF - 0.03, 0.01);
   /* the door: a leaf with a glass panel and a handle */
   box(shop, 0.96, 2.4, 0.08, std(new THREE.Color(wallHex).multiplyScalar(0.45 * Math.max(dim, 0.6)).getHex(), 0.6), SX + 2.4, 1.2, ZF - 0.03, 0.02);
-  add(shop, new THREE.Mesh(new THREE.PlaneGeometry(0.6, 1.2), new THREE.MeshStandardMaterial({ color: 0xb89a6a, emissive: 0xffd08a, emissiveIntensity: night ? 0.55 : 0.2, roughness: 0.2 })), SX + 2.4, 1.5, ZF + 0.02, false);
+  add(shop, new THREE.Mesh(new THREE.PlaneGeometry(0.6, 1.2), new THREE.MeshStandardMaterial({ color: 0xb89a6a, emissive: 0xffd08a, emissiveIntensity: night ? 0.4 : 0.2, roughness: 0.2 })), SX + 2.4, 1.5, ZF + 0.02, false);
   box(shop, 0.05, 0.3, 0.07, std(0xd8c27a, 0.3, { metalness: 0.6 }), SX + 2.05, 1.0, ZF + 0.07, 0.01);
   box(shop, 1.3, 0.04, 0.9, std(0x55504a, 0.9), SX + 2.4, 0.03, ZF + 0.5, 0.01, false);    /* a doormat */
 
@@ -123,12 +125,12 @@ export function buildSets(parent, cfg, P = cfg.palette) {
   box(shop, 1.0, 1.3, 0.6, std(0xdfe6ea, 0.4), SX + 3.0, 0.65, -8.45, 0.05);                /* chiller */
   box(shop, 0.86, 1.0, 0.04, std(0x9fd8ee, 0.2, { emissive: 0x7fc8e8, emissiveIntensity: night ? 0.7 : 0.25 }), SX + 3.0, 0.7, -8.14, 0.01, false);
   for (const dx of [-1.6, 1.4]) box(shop, 1.5, 0.05, 0.3, glow(0xfff2d0), SX + dx, 3.38, -7.0, 0.01, false);   /* ceiling tubes */
-  const inLights = [[-1.6, 2.9, -6.8, night ? 16 : 9], [1.6, 2.9, -7.4, night ? 12 : 7]].map(([dx, y, z, I]) => {
+  const inLights = [[-1.6, 2.9, -6.8, night ? 8 : 9], [1.6, 2.9, -7.4, night ? 6 : 7]].map(([dx, y, z, I]) => {
     const l = new THREE.PointLight(0xffe0b0, I, 8.5, 1.4); l.position.set(SX + dx, y, z); shop.add(l); return l;
   });
   /* a lit shape on the window glass from outside is the room itself; the wall glow near the door spills on the pavement */
-  const spill = new THREE.PointLight(0xffd8a0, night ? 6 : 0, 5, 1.6); spill.position.set(SX - 0.7, 1.7, ZF + 0.8); shop.add(spill);
-  live.push((tw) => { const f = 1 + (hash(Math.floor(tw * 6) + 4) - 0.5) * 0.04; inLights.forEach((l, i) => { l.intensity = (night ? [16, 12][i] : [9, 7][i]) * f; }); });
+  const spill = new THREE.PointLight(0xffd8a0, night ? 3.2 : 0, 5, 1.6); spill.position.set(SX - 0.7, 1.7, ZF + 0.8); shop.add(spill);
+  live.push((tw) => { const f = 1 + (hash(Math.floor(tw * 6) + 4) - 0.5) * 0.04; inLights.forEach((l, i) => { l.intensity = (night ? [8, 6][i] : [9, 7][i]) * f; }); });
 
   /* ---- the sign over the door: a board hung from a bracket by two chains; separate group so it can fall ---- */
   const sgx = SX + 2.4, bracketY = 3.5, bz = ZF + 0.62;
@@ -240,10 +242,10 @@ export function buildSets(parent, cfg, P = cfg.palette) {
     g.fillStyle = "rgba(45,115,96,0.55)"; g.fillRect(0, H * 0.62, W, H * 0.38); g.strokeStyle = "rgba(220,225,220,0.3)"; g.lineWidth = 2;   /* a tiled dado */
     for (let x = 0; x <= W; x += 32) { g.beginPath(); g.moveTo(x, H * 0.62); g.lineTo(x, H); g.stroke(); } for (let y = H * 0.62; y <= H; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
   }, [3, 1]);
-  const wallU = new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.85 });
-  const stepM = std(0x8f9194, 0.75);
+  const wallU = new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.85, color: night ? 0xb4b7be : 0xffffff });   /* night: darker concrete, so the vision is moody, not a white stairwell (V13) */
+  const stepM = std(night ? 0x84868c : 0x8f9194, 0.75);
   const rough = canvasTex(256, 256, (g, W, H) => { const r = rng(5); g.fillStyle = "#c8c8c8"; g.fillRect(0, 0, W, H); for (let i = 0; i < 7; i++) { g.fillStyle = `rgba(20,20,20,${0.6 + r() * 0.3})`; g.beginPath(); g.ellipse(r() * W, r() * H, 30 + r() * 60, 12 + r() * 30, r() * 3, 0, 7); g.fill(); } }, [6, 1]);
-  const wetM = new THREE.MeshStandardMaterial({ color: 0x5c6066, roughness: 1, roughnessMap: rough, metalness: 0.35 });   /* the dark patches are glossy: puddles */
+  const wetM = new THREE.MeshStandardMaterial({ color: night ? 0x4c4f56 : 0x5c6066, roughness: 1, roughnessMap: rough, metalness: 0.35 });   /* the dark patches are glossy: puddles */
   const xB = ST0 + NST * RUN;                                                             /* x where the last riser meets the floor */
   const xEnd = xB + 7.0;
   box(under, 8, TOP, WID + 3.6, std(0x9a9a94, 0.9), ST0 - 4.0, TOP / 2, ZC, 0.03);       /* the raised block the top landing sits on */
@@ -271,16 +273,93 @@ export function buildSets(parent, cfg, P = cfg.palette) {
   const tubeM = new THREE.MeshBasicMaterial({ color: 0xdff0ff }), tube = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.14), tubeM); tube.position.set(xB + 2.0, 2.58, ZC); under.add(tube);
   box(under, 1.5, 0.05, 0.2, darkM, xB + 2.0, 2.62, ZC, 0.01, false);
   const tube2M = new THREE.MeshBasicMaterial({ color: 0xcfe0ee }), tube2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.14), tube2M); tube2.position.set(xB + 5.5, 2.58, ZC); under.add(tube2);
-  const stripLight = new THREE.PointLight(0xd8eaff, night ? 6 : 3, 9, 1.4); stripLight.position.set(xB + 2.0, 2.0, ZC); under.add(stripLight);
-  const stairLight = new THREE.PointLight(0xffe6b8, night ? 6 : 0, 6.5, 1.6); stairLight.position.set(ST0 + 1.0, TOP + 0.9, ZC); under.add(stairLight);   /* a lamp on the landing, throwing its light down the steps */
+  const stripLight = new THREE.PointLight(0xd8eaff, night ? 5 : 3, 9, 1.4); stripLight.position.set(xB + 2.0, 2.0, ZC); under.add(stripLight);
+  const stairLight = new THREE.PointLight(0xffe6b8, night ? 5 : 0, 6.5, 1.6); stairLight.position.set(ST0 + 1.0, TOP + 0.9, ZC); under.add(stairLight);   /* a lamp on the landing, throwing its light down the steps */
   const post = rb(0.14, 3.6, 0.14, darkM, 0.03); post.position.set(ST0 - 0.4, TOP + 1.8, ZC - WID / 2 - 0.1); under.add(post);
   const lampHead = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.26), glow(0xfff0c8)); lampHead.position.set(ST0 - 0.1, TOP + 3.5, ZC - WID / 2 - 0.1); under.add(lampHead);
   live.push((tw) => {                                                                     /* the tube flickers: mostly on, with bad moments */
     const bad = Math.sin(tw * 0.7) > 0.55, on = calm.on || (bad ? hash(Math.floor(tw * 20)) > 0.45 : hash(Math.floor(tw * 18) + 5) > 0.06);   /* calm: the vision shows a steady light (its flicker read as stop motion: autoreview V8, 2026-11-17) */
-    tubeM.color.setHex(on ? 0xdff0ff : 0x2a3036); stripLight.intensity = on ? (night ? 6 : 3) : (night ? 1 : 0.5);
+    tubeM.color.setHex(on ? 0xdff0ff : 0x2a3036); stripLight.intensity = on ? (night ? 5 : 3) : (night ? 1 : 0.5);
     tube2M.color.setHex(calm.on || hash(Math.floor(tw * 7) + 9) > 0.04 ? 0xcfe0ee : 0x2a3036);
   });
   anchors.stairsTop = V(ST0 - 0.4, TOP, ZC); anchors.stairsMid = V(ST0 + NST * RUN / 2, TOP / 2, ZC); anchors.stairsBottom = V(xB + 0.6, 0, ZC); anchors.stairsLight = V(xB + 2.0, 2.58, ZC);
+
+
+  /* ===================================================================================================================
+     2026-11-17: depth, light and life in the places away from the bus stop (the user: "lighting at all points ... extreme depth ...
+     life everywhere"). Practical light (window spill, neon, tail lights, wall lamps, daylight at the end of the passage), things
+     near the lens, and things that move. All pure functions of tw; every fade is >= 0.3 s (ERR-0020). ===================== */
+  const ph = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
+  const emis = (hex, k = 1.8) => new THREE.MeshBasicMaterial({ color: ph(hex, k) });
+
+  /* ---- the shop: spill on the pavement, a neon cup in the window that blinks slowly, glare at the door, a cat on the sill, pots at the door ---- */
+  if (night) {
+    pool(G, SX - 0.7, ZF + 1.5, 3.6, 1.7, 0xffc890, 0.2); pool(G, SX + 2.4, ZF + 1.0, 1.3, 1.1, 0xffd8a0, 0.3);
+    glare(shop, SX + 2.4, 1.6, ZF + 0.15, 1.5, 0xffd08a, 0.25, 1.4);
+    for (const dx of [-1.6, 1.4]) glare(shop, SX + dx, 3.2, -7.0, 1.1, 0xfff2d0, 0.28, 1.3);                           /* the ceiling tubes bloom */
+    glare(shop, SX + 3.0, 0.7, -8.0, 1.1, 0x9fd8ee, 0.4, 1.4);                                                       /* the chiller */
+  }
+  const neonG = new THREE.Group(); neonG.position.set(SX - 2.65, 2.1, ZF - 0.06); shop.add(neonG);
+  const neonM = new THREE.MeshBasicMaterial({ color: ph(0xff5fa2, 1.8) });
+  { const r = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.016, 8, 24), neonM); neonG.add(r); const h = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.014, 8, 14, Math.PI * 1.6), neonM); h.position.set(0.22, 0, 0); h.rotation.z = -Math.PI * 0.8; neonG.add(h);
+    for (const dx of [-0.08, 0, 0.08]) { const s = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.01, 6, 10, Math.PI), neonM); s.position.set(dx, 0.3, 0); s.rotation.z = Math.PI / 2; neonG.add(s); } }
+  const neonGlow = glare(neonG, 0, 0, 0.1, 1.5, 0xff5fa2, 0.5, 1.4);
+  const cat = new THREE.Group(); cat.position.set(SX - 2.2, 0.88, ZF + 0.1); cat.rotation.y = Math.PI * 0.08; shop.add(cat);
+  { const fur = std(0xd98a3a, 0.9), furD = std(0x8a4f1c, 0.9);
+    const body = rb(0.42, 0.22, 0.22, fur, 0.08); body.position.set(0, 0.11, 0); cat.add(body);
+    const hd = rb(0.2, 0.17, 0.17, fur, 0.07); hd.position.set(0.25, 0.16, 0.0); cat.add(hd);
+    for (const s of [-1, 1]) { const e = rb(0.05, 0.07, 0.04, furD, 0.015); e.position.set(0.28, 0.27, s * 0.06); cat.add(e); }
+    const tail = new THREE.Group(); tail.position.set(-0.22, 0.1, 0); cat.add(tail); const tl = rb(0.3, 0.06, 0.06, furD, 0.025); tl.position.set(-0.15, 0, 0); tail.add(tl); cat.userData.tail = tail; cat.userData.body = body; }
+  const pots = [[SX - 3.9, ZF + 0.4], [SX + 3.85, ZF + 0.4], [SX - 4.6, ZF + 0.4]].map(([x, z], i) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); shop.add(g); const pt = rb(0.42, 0.4, 0.42, std(0x9a5a3a, 0.8), 0.06); pt.position.y = 0.2; g.add(pt);
+    const lv = []; for (let k = 0; k < 6; k++) { const l = rb(0.2, 0.3, 0.16, std(k % 2 ? 0x2d6a33 : 0x3f8a45, 0.85), 0.07); l.position.set((k - 2.5) * 0.08, 0.55 + (k % 3) * 0.1, (k % 2 - 0.5) * 0.1); l.rotation.z = (k - 2.5) * 0.18; g.add(l); lv.push(l); }
+    g.traverse((q) => { q.userData.noShadow = true; }); return { g, lv, i };
+  });
+  live.push((tw) => {
+    const per = 5.6, p = tw % per, k = p < per * 0.7 ? Math.min(1, p / 0.35) : 1 - Math.min(1, (p - per * 0.7) / 0.35);                 /* the neon: eases on and off over 0.35 s */
+    neonM.color.copy(ph(0x3a1a2a, 1)).lerp(ph(0xff5fa2, 1.8), 0.15 + 0.85 * k); neonGlow.material.opacity = 0.08 + 0.45 * k;
+    cat.userData.body.scale.y = 1 + 0.05 * Math.sin(tw * 1.9); cat.userData.tail.rotation.z = 0.5 * Math.sin(tw * 1.1) + 0.2 * Math.sin(tw * 2.3);   /* it breathes; the tail drifts */
+    pots.forEach(({ lv, i }) => lv.forEach((l, k) => { l.rotation.z = (k - 2.5) * 0.18 + 0.07 * Math.sin(tw * 1.5 + k + i) * wind(tw, i); }));
+  });
+
+  /* ---- the parked car: parking lights, tail lights, a dome light on the driver, exhaust, studs along the cycle lane ---- */
+  { for (const z of [-0.6, 0.6]) { glare(car, -2.3, 0.74, z, 0.9, 0xff2a2a, 0.7, 2.0); glare(car, 2.3, 0.72, z, 1.0, 0xfff0c8, 0.35, 1.6); }
+    glare(car, -0.05, 1.25, -0.2, 1.3, 0xffe0b0, 0.38, 1.3);                                                          /* the dome light on the driver */
+    if (night) { pool(G, CX - 3.8, 0.15, 3.0, 1.2, 0xfff0c8, 0.14); pool(G, CX + 3.6, 0.15, 2.2, 1.1, 0xff3a2a, 0.12); } }
+  const exh = Array.from({ length: 5 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex(), color: 0xaebbd8, transparent: true, depthWrite: false, opacity: 0.1, fog: false })); G.add(deco(sp)); return sp; });
+  const studs = (() => { const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.03, 0.1), emis(0xfff0c8, 1.6), 22), m4 = new THREE.Matrix4(); for (let i = 0; i < 22; i++) { m4.makeTranslation(CX - 10 + i * 1.0, 0.03, 1.18); im.setMatrixAt(i, m4); } G.add(deco(im)); return im; })();
+  live.push((tw) => exh.forEach((sp, i) => {
+    const u = (tw * 0.35 + i / 5) % 1, q = wind(tw, 3);
+    sp.position.set(CX + 2.35 + u * 0.9 * q, 0.28 + u * 0.9, 0.55 + Math.sin(tw * 0.8 + i) * 0.05); sp.scale.setScalar(0.18 + u * 0.7); sp.material.opacity = 0.14 * Math.sin(Math.PI * Math.min(1, u * 1.1)) * (1 - u * 0.5);
+  }));
+
+  /* ---- the underpass: pipes and cables along the ceiling, wall lamps with pools, cones of light from the tubes, dust drifting in them,
+          daylight spilling in from the far end, a silhouette crossing it now and then, moths at the landing lamp ---- */
+  { const pipeM = std(0x7b8088, 0.45, { metalness: 0.6 }), cabM = new THREE.MeshBasicMaterial({ color: 0x0b0d12 });
+    for (const [s, y, r] of [[-1, 2.3, 0.07], [-1, 2.05, 0.04], [1, 2.35, 0.05]]) { const L = xEnd - xB + 0.8, p = new THREE.Mesh(new THREE.CylinderGeometry(r, r, L, 10), pipeM); p.rotation.z = Math.PI / 2; p.position.set((xB - 0.4 + xEnd) / 2, y, ZC + s * (WID / 2 - 0.12)); p.userData.noShadow = true; under.add(p); }
+    for (let i = 0; i < 4; i++) { const x0 = xB + 0.4 + i * 1.7, a = new THREE.Vector3(x0, 2.55, ZC + (i % 2 ? 0.7 : -0.7)), b = new THREE.Vector3(x0 + 1.5, 2.55, ZC + (i % 2 ? -0.5 : 0.5)), m = a.clone().lerp(b, 0.5); m.y -= 0.22; const t = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([a, m, b]), 10, 0.012, 3), cabM); under.add(deco(t)); }
+    for (const x of [xB + 0.4, xB + 3.6]) for (const s of [-1, 1]) {
+      const sc = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.08), emis(0xffe0a8, 2.2)); sc.position.set(x, 2.15, ZC + s * (WID / 2 - 0.04)); under.add(deco(sc));
+      glare(under, x, 2.15, ZC + s * (WID / 2 - 0.18), 1.2, 0xffd8a0, 0.5, 1.6); pool(under, x, ZC + s * 0.5, 1.6, 0.9, 0xffd8a0, 0.2, 0.02);
+    }
+    shaft(under, xB + 2.0, 2.55, ZC, 0.12, 0.85, 0xcfe0ff, 0.09, 2.55); shaft(under, xB + 5.5, 2.55, ZC, 0.12, 0.85, 0xcfe0ff, 0.07, 2.55);
+    pool(under, xB + 2.0, ZC, 2.2, 1.0, 0xcfe0ff, 0.16, 0.02); pool(under, xB + 5.5, ZC, 2.2, 1.0, 0xcfe0ff, 0.12, 0.02);
+    glare(under, xEnd - 0.3, 1.3, ZC, 4.8, 0xdff0ff, 0.5, 1.5);                                                      /* the daylight at the far end blooms */
+    pool(under, xEnd - 1.6, ZC, 2.4, 1.0, 0xdff0ff, 0.2, 0.02);
+    shaft(under, ST0 - 0.1, TOP + 3.45, ZC - WID / 2 - 0.1, 0.25, 1.9, 0xffd9a0, 0.07, 3.45); glare(under, ST0 - 0.1, TOP + 3.4, ZC - WID / 2 - 0.1, 2.6, 0xffd9a0, 0.7, 2.2);   /* the landing lamp: glare and a cone */
+    pool(under, ST0 - 0.1, ZC - WID / 2 + 0.6, 2.4, 1.8, 0xffc27a, 0.22, TOP + 0.02);
+  }
+  const dust = Array.from({ length: 16 }, (_, i) => { const sp = glare(under, 0, 0, 0, 0.07 + hash(i) * 0.05, 0xdff0ff, 0.5, 1.4); return { sp, i }; });
+  const moths = Array.from({ length: 3 }, (_, i) => ({ sp: glare(under, 0, 0, 0, 0.1, 0xfff3c0, 0.8, 1.5), i }));
+  const walker = makePerson({ skin: 0x06080c, hair: 0x06080c, top: 0x06080c, bottom: 0x06080c }); walker.scale.setScalar(0.72);
+  walker.traverse((q) => { if (q.isMesh) { q.material = new THREE.MeshBasicMaterial({ color: 0x07090d }); q.userData.noShadow = true; } }); under.add(walker);
+  live.push((tw) => {
+    dust.forEach(({ sp, i }) => { const u = hash(i + 4.4); sp.position.set(xB + 0.6 + hash(i) * 6.2 + Math.sin(tw * 0.21 + i) * 0.5, 0.5 + hash(i + 1.1) * 1.9 + Math.sin(tw * 0.33 + i * 2) * 0.25, ZC + (hash(i + 2.2) - 0.5) * 1.8 + Math.sin(tw * 0.27 + i) * 0.3); sp.material.opacity = 0.25 + 0.3 * (0.5 + 0.5 * Math.sin(tw * 0.6 + i * 3.1)); });
+    moths.forEach(({ sp, i }) => { const a = tw * (2.0 + i * 0.7) + i * 2; sp.position.set(ST0 - 0.1 + Math.sin(a) * 0.4, TOP + 3.3 + Math.sin(tw * 1.9 + i) * 0.2, ZC - WID / 2 - 0.1 + Math.cos(a * 0.9) * 0.4); sp.material.opacity = 0.5 + 0.4 * Math.sin(tw * 6.7 + i); });
+    const cyc = 13, c = (tw + 3) % cyc, u = Math.min(1, c / 4.4), crossing = c < 4.4;                                      /* a figure crosses the daylight every 13 s, from behind one wall to behind the other */
+    walker.visible = crossing; walker.position.set(xEnd - 0.5, 0, ZC + (u * 2 - 1) * 2.1 * ((Math.floor((tw + 3) / cyc) % 2) ? -1 : 1)); walker.rotation.y = ((Math.floor((tw + 3) / cyc) % 2) ? -1 : 1) > 0 ? 0 : Math.PI;
+    if (crossing) pose(walker, { t: tw, seed: 5, state: "walk", speed: 4.4, expr: "neutral" });
+  });
 
   /* ---- counts, then the shadows: only meshes that already cast keep it (the shop and block do; small props do not) ---- */
   let meshCount = 0; G.traverse((o) => { if (o.isMesh) meshCount += 1; });
