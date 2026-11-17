@@ -19,7 +19,8 @@ const tS = W("L06", "SUDDENLY"), tK = W("L07", "SWERVES"), tA = W("L05", "PULLS"
 let vMin = 99, vMax = 0;
 
 let fail = [], prevX = null, prevV = 0, wheelOn = null;
-console.log("  t      x      speed  wheelZ  cornerX cornerZ  y     ", `(suddenly ${tS}, kerb ${tK}, impact ${IMP})`);
+const VERBOSE = process.argv.includes("--verbose");   /* the per-frame table only on request: 200 lines on every run filled the context (usage audit, 2026-11-17) */
+if (VERBOSE) console.log("  t      x      speed  wheelZ  cornerX cornerZ  y     ", `(suddenly ${tS}, kerb ${tK}, impact ${IMP})`);
 for (let f = Math.floor(Math.min(tS, tA) * 60) - 30; f <= Math.round(IMP * 60); f++) {
   const t = f / 60, p = pose(t), wh = world(p, 1.9, -1.2 - 0.17), co = world(p, 3.21, -1.25);
   const v = prevX === null ? 0 : (p.x - prevX) * 60;
@@ -27,7 +28,7 @@ for (let f = Math.floor(Math.min(tS, tA) * 60) - 30; f <= Math.round(IMP * 60); 
   if (t < IMP - 1e-6 && co.z < ROOF.zEdge && co.x > ROOF.x0 && co.x < ROOF.x1) fail.push(`corner inside the shelter roof at ${t.toFixed(3)} s`);
   if (t >= tA && t < IMP - 1 / 60 && prevX !== null) { vMin = Math.min(vMin, v); vMax = Math.max(vMax, v); }
   if (t > tS + 0.05 && t < IMP - 1 / 60 && v < prevV - 0.6) fail.push(`the bus slows at ${t.toFixed(3)} s (${prevV.toFixed(2)} -> ${v.toFixed(2)} m/s)`);
-  if (f % 2 === 0) console.log(`${t.toFixed(3)}  ${p.x.toFixed(2).padStart(6)}  ${v.toFixed(2).padStart(5)}  ${wh.z.toFixed(2).padStart(6)}  ${co.x.toFixed(2).padStart(6)}  ${co.z.toFixed(2).padStart(6)}  ${p.y.toFixed(2)}`);
+  if (VERBOSE && f % 2 === 0) console.log(`${t.toFixed(3)}  ${p.x.toFixed(2).padStart(6)}  ${v.toFixed(2).padStart(5)}  ${wh.z.toFixed(2).padStart(6)}  ${co.x.toFixed(2).padStart(6)}  ${co.z.toFixed(2).padStart(6)}  ${p.y.toFixed(2)}`);
   prevX = p.x; if (t > tS) prevV = v;
 }
 { const K0 = pre[0][0] + IMP - LOC; let pv = null;                   /* the user, 2026-11-16: the bus must not slow down at ANY point before the hit */

@@ -202,6 +202,17 @@ skill or agent file whenever it turns out to be wrong.
 
 ## Working conventions
 
+- **Ship a version with ONE command:** `python tools/ship/ship.py films/<slug> vN`. It runs the gates and the render,
+  muxes the sound, then runs the review, the failure frames, the contact sheet, the Instagram file and a phone copy. A quick look
+  at one span: `--start S --end E --fps 30`. Never hand-run those steps ([docs/USAGE_AUDIT.md](docs/USAGE_AUDIT.md)).
+- **Post `<name>_ig.mp4`, never the master.** `tools/ship/ig_check.py` checks Meta's Reels spec and our compact budget
+  (≤ 60 MB a minute) ([docs/INSTAGRAM_SPECS.md](docs/INSTAGRAM_SPECS.md)).
+- **Keep sessions short; that is where the tokens go.** Every tool call re-reads the whole context: one 862-call session was
+  half of all usage. Do one milestone per session, batch steps into one script, keep check output quiet, read the failure tile
+  before the full contact sheet, and hand off through `films/<slug>/HANDOFF.md`. The `context_size.py` hook warns at 200k and
+  400k tokens.
+- **Renders go outside the composition folder** (`films/<slug>/renders/lab_silent/`); inside it they get bundled into every
+  render (ERR-0022, G11).
 - **OpenMontage work runs inside `external_tools/editing/OpenMontage/`** with its venv activated —
   that is where its pipelines, tools and registry live. Our own docs, decisions and memory stay at
   this root. `tools/reelkit` has its own venv.

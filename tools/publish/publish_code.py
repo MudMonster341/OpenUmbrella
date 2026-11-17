@@ -46,8 +46,21 @@ def lines(name):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--dry-run", action="store_true"); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--check-staged", action="store_true", help="pre-commit: scan the staged public files for story words; push nothing")
+    a = ap.parse_args()
     private, frozen, markers = lines("private_paths.txt"), lines("frozen_paths.txt"), lines("story_markers.txt")
+    if a.check_staged:                                     # caught at commit, not at publish (it blocked publishing twice on 2026-11-17)
+        under = lambda f, ps: any(f == q.rstrip("/") or f.startswith(q.rstrip("/") + "/") for q in ps)
+        staged = [f for f in git("diff", "--cached", "--name-only", "--diff-filter=ACMR").splitlines() if f and not under(f, private + frozen)]
+        if not staged: return 0
+        pat = "|".join(f"(?:{m})" for m in markers)
+        hits = git("grep", "--cached", "-I", "-n", "-i", "-P", pat, "--", *staged, check=False)
+        if hits:
+            print("pre-commit: story words in files that will be PUBLISHED (name roles, not characters; or add the path to private_paths.txt):")
+            for h in hits.splitlines()[:20]: print("  " + h[:160])
+            return 1
+        return 0
     g = subprocess.run([sys.executable, str(ROOT / "tools" / "guards" / "check_guards.py")], cwd=ROOT, capture_output=True, text=True)
     print(g.stdout.strip())
     if g.returncode:                                       # a guard failed: an unapproved model, a missing hook, a broken reviewer

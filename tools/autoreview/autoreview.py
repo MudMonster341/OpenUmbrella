@@ -430,6 +430,7 @@ def beat_table(plan):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("film"); ap.add_argument("--video", required=True); ap.add_argument("--no-asr", action="store_true")
+    ap.add_argument("--quiet", action="store_true", help="print only failures and warnings (the full table is in AUTOREVIEW.md)")
     a = ap.parse_args()
     film, video = (ROOT / a.film).resolve() if not Path(a.film).is_absolute() else Path(a.film), Path(a.video).resolve()
     plan = json.loads(sh(["node", "export_plan.mjs"], cwd=LAB).stdout)
@@ -457,6 +458,7 @@ def main():
     lines += ["", "## Beat table (reel-builder format, from the plan)", "", beat_table(plan), ""]
     (rv / "AUTOREVIEW.md").write_text("\n".join(lines), encoding="utf-8")
     for r in RESULTS:
+        if a.quiet and r["pass"]: continue
         print(f"{'PASS' if r['pass'] else ('FAIL' if r['blocker'] else 'WARN')}  {r['id']:4s} {r['name']}: {r['value']}")
     print(f"{verdict} -> {rv / 'AUTOREVIEW.md'}")
     return 0 if not fails else 1

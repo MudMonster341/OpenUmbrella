@@ -62,7 +62,7 @@ const shot = D.shots.find((s) => Math.abs(s.t0 - tSud) < 1e-6);
 if (process.argv[1]?.endsWith("check_crash_shot.mjs")) {
   if (!shot) { console.log("FAIL\n  no shot starts at \"suddenly\""); process.exit(1); }
   const cuts = D.shots.filter((s) => s.t0 >= tSud - 1e-6 && s.t0 < T.lines.find((l) => l.id === "L07").t - 1e-6);
-  const r = evaluate(shot, true);
+  const r = evaluate(shot, process.argv.includes("--verbose"));   /* the per-frame table only on request (usage audit, 2026-11-17) */
   if (cuts.length !== 1) r.fail.push(`${cuts.length} shots between "suddenly" and L07: the crash must be one take`);
   if (shot.t1 < T.lines.find((l) => l.id === "L07").t - 1e-6) r.fail.push("the take ends before L07: the crash must be one uncut take");   /* it may run longer (v9: through "right where I was sitting") */
   console.log(`one take ${shot.t0.toFixed(2)}-${shot.t1.toFixed(2)} s; worst overshoot past the safe frame (ndc): squirrel ${r.worst.squirrel.toFixed(2)}, bus ${r.worst.bus.toFixed(2)}, shelter ${r.worst.shelter.toFixed(2)}`);
