@@ -123,8 +123,19 @@ def g6():
     res("G6", not hits, "aliased slerpQuaternions at " + ", ".join(hits) if hits else "no quaternion blend writes into its own input")
 
 
+MEDIA_ALLOWED = ("story_reel_foundation/evidence/", "story_reel_foundation/storyboard/frames/", "story_reel_foundation/trials/", "films/")   # deliberate evidence; film folders are private on publish (no story names in code)   # deliberate evidence; frames of reels never publish (private_paths)
+
+
+def g7():
+    """no image or video is tracked in git outside the deliberate evidence folders. Twice on 2026-11-16/17 a HyperFrames working folder
+    (a preview's snaps/, then .thumbnails/) was committed by `git add <folder>`; both were frames of our reel"""
+    r = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.splitlines()
+    bad = [f for f in r if re.search(r"\.(png|jpe?g|webp|gif|mp4|mov|webm|wav|mp3)$", f, re.I) and not f.startswith(MEDIA_ALLOWED)]
+    res("G7", not bad, f"{len(bad)} media files tracked outside the evidence folders: " + ", ".join(bad[:5]) if bad else "no stray media tracked in git")
+
+
 def main():
-    g1(); g2(); g3(); g4(); g5(); g6()
+    g1(); g2(); g3(); g4(); g5(); g6(); g7()
     for gid, st, msg in results:
         print(f"{st}  {gid}  {msg}")
     fails = [r for r in results if r[1] == "FAIL"]

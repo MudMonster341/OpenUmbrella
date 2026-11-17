@@ -29,6 +29,7 @@ function canvasTex(w, h, draw, repeat) {
 }
 
 export function buildSets(parent, cfg, P = cfg.palette) {
+  const calm = { on: false };                                                             /* set by the director: no flicker while calm */
   const G = new THREE.Group(); parent.add(G);
   const live = [];
   const night = !!cfg.night, S = cfg.sets || {};
@@ -275,13 +276,13 @@ export function buildSets(parent, cfg, P = cfg.palette) {
   const post = rb(0.14, 3.6, 0.14, darkM, 0.03); post.position.set(ST0 - 0.4, TOP + 1.8, ZC - WID / 2 - 0.1); under.add(post);
   const lampHead = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.26), glow(0xfff0c8)); lampHead.position.set(ST0 - 0.1, TOP + 3.5, ZC - WID / 2 - 0.1); under.add(lampHead);
   live.push((tw) => {                                                                     /* the tube flickers: mostly on, with bad moments */
-    const bad = Math.sin(tw * 0.7) > 0.55, on = bad ? hash(Math.floor(tw * 20)) > 0.45 : hash(Math.floor(tw * 18) + 5) > 0.06;
+    const bad = Math.sin(tw * 0.7) > 0.55, on = calm.on || (bad ? hash(Math.floor(tw * 20)) > 0.45 : hash(Math.floor(tw * 18) + 5) > 0.06);   /* calm: the vision shows a steady light (its flicker read as stop motion: autoreview V8, 2026-11-17) */
     tubeM.color.setHex(on ? 0xdff0ff : 0x2a3036); stripLight.intensity = on ? (night ? 6 : 3) : (night ? 1 : 0.5);
-    tube2M.color.setHex(hash(Math.floor(tw * 7) + 9) > 0.04 ? 0xcfe0ee : 0x2a3036);
+    tube2M.color.setHex(calm.on || hash(Math.floor(tw * 7) + 9) > 0.04 ? 0xcfe0ee : 0x2a3036);
   });
   anchors.stairsTop = V(ST0 - 0.4, TOP, ZC); anchors.stairsMid = V(ST0 + NST * RUN / 2, TOP / 2, ZC); anchors.stairsBottom = V(xB + 0.6, 0, ZC); anchors.stairsLight = V(xB + 2.0, 2.58, ZC);
 
   /* ---- counts, then the shadows: only meshes that already cast keep it (the shop and block do; small props do not) ---- */
   let meshCount = 0; G.traverse((o) => { if (o.isMesh) meshCount += 1; });
-  return { group: G, anchors, meshCount, update: (tw) => live.forEach((f) => f(tw)) };
+  return { group: G, anchors, meshCount, calm, update: (tw) => live.forEach((f) => f(tw)) };
 }

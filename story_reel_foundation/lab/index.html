@@ -241,10 +241,8 @@
         const vision = (D.effects.vision || []).some((v) => T >= v.t0 && T < v.t1);
         const tw = ghost ? ghost.showTime : sh0.rep ? sh0.rep.tw0 + (T - sh0.t0) * sh0.rep.rate : worldTime(D.effects, T);   /* the ghost is a FROZEN frame of the future; a replay shot runs the world from its own moment */
         const shot = shotAt(T, tw);
+        sets.calm.on = !!vision;                                                            /* the vision is steady: the tube's single-frame flicker read as stop motion (V8) */
         world.update(tw, { noFrag: !!ghost }); sets.update(tw);
-        if (vision && stripLight) {                                                          /* the underpass tube flickers on and off in single frames: in the vision that read as a whole-picture jump (V6), so its light is averaged over the last 0.25 s */
-          let acc = 0; for (let k = 0; k < 6; k++) { sets.update(tw - k * 0.05); acc += stripLight.intensity; } sets.update(tw); stripLight.intensity = acc / 6;
-        }
         sets.group.visible = T >= D.sets.from;                                              /* scene 1 is exactly as it was: the shop, the parked car and the stairs do not exist before scene 2 */
         const onCh = T >= D.choice[0] && T < D.choice[1]; choiceG.visible = onCh; chairB.g.visible = onCh;
         placeCast(tw, ghost, vision); const lead = actors.lead;
