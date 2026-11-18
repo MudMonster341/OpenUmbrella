@@ -190,6 +190,19 @@ def check(path):
     for k in range(len(ln) - 3):
         if max(ln[k:k + 4]) - min(ln[k:k + 4]) <= 1:
             W.append(f"P3 four sentences in a row of {min(ln[k:k + 4])}-{max(ln[k:k + 4])} words from {sents[k][0]}: vary the rhythm"); break
+    # ---- R: no repeats (the user 2026-11-18: "NO REPEAT OF SCENES FROM THE FIRST REEL ... REPEAT SPOILS THE REEL"; "old man came
+    # twice"). 'no_repeat': phrases naming an earlier part's scenes, events and stamps; any line that says, shows or reuses one fails.
+    # And no event phrase may appear in the pictures of two different lines (the same scene shown twice inside a part).
+    nr = d.get("no_repeat")
+    if nr is None: F.append("R1 no 'no_repeat' list (the earlier parts' scenes, events and times this part must not show again)")
+    else:
+        for x in L:
+            blob = " ".join([x["say"], x["picture"], x.get("reuse", "")]).lower()
+            hit = [p for p in nr if p.lower() in blob]
+            if hit: F.append(f"R1 {x['id']} repeats an earlier part: {hit}")
+    for ev in d.get("events", []):
+        where = [x["id"] for x in L if ev.lower() in x["picture"].lower()]
+        if len(where) > 1: F.append(f"R2 the event '{ev}' is shown in {where}: show it once")
     # ---- L: ledger
     g = d.get("ledger")
     after, end = {}, None

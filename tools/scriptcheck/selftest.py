@@ -66,14 +66,21 @@ def main():
     expect("H4 only one question by 8 s", d, "H4", where="W")
     d = copy.deepcopy(clean); d["pace_budget"]["hook"] = 0.5
     expect("P1 a section over its budget", d, "P1")
-    d = copy.deepcopy(clean); filler = dict(d["lines"][20], say="I wait and wait and wait and keep on waiting there.")
-    d["lines"] = d["lines"][:21] + [dict(filler, id=f"X{k}") for k in range(3)] + d["lines"][21:]
+    d = copy.deepcopy(clean); m = len(d["lines"]) // 2; filler = dict(d["lines"][m], say="I wait and wait and wait and keep on waiting there.")
+    d["lines"] = d["lines"][:m + 1] + [dict(filler, id=f"X{k}") for k in range(3)] + d["lines"][m + 1:]
     expect("P2 a long stretch with nothing new", d, "P2")
     d = copy.deepcopy(clean); d["lines"][0]["say"] = d["lines"][0]["say"].rstrip(".") + " and then much later on that same long night."
     expect("P3 a long hook sentence", d, "P3")
     d = copy.deepcopy(clean)
-    for k in range(10, 14): d["lines"][k]["say"] = "One two three four five six. Seven eight nine ten eleven twelve."
+    for k in range(3, 7): d["lines"][k]["say"] = "One two three four five six. Seven eight nine ten eleven twelve."
     expect("P3 a droning rhythm (same length four times)", d, "P3", where="W")
+
+    d = copy.deepcopy(clean); d["no_repeat"] = d.get("no_repeat", []) + [d["lines"][4]["picture"].split()[1]]
+    expect("R1 a line showing an earlier part's scene", d, "R1")
+    d = copy.deepcopy(clean); d.pop("no_repeat", None)
+    expect("R1 no no_repeat list declared", d, "R1")
+    d = copy.deepcopy(clean); w = d["lines"][5]["picture"].split()[1]; d["events"] = [w]; d["lines"][-3]["picture"] += " " + w
+    expect("R2 one event shown on two lines", d, "R2")
 
     print(f"SELFTEST {'PASS' if not fails else 'FAIL'}: {len(ran)} tests" + (f", failed: {', '.join(fails)}" if fails else ""))
     return 1 if fails else 0
