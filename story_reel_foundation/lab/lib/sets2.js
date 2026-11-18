@@ -193,7 +193,7 @@ export function buildSets2(scene, ORIGIN) {
       const wob = T >= cue.plank && T < cue.fall2 ? Math.sin((T - cue.plank) * 18) * 0.05 * Math.min(1, (T - cue.plank) / 0.2) : 0;
       const pk = Math.min(1, Math.max(0, (T - cue.fall2 + 0.1) / 0.4)); dyn.plank.rotation.z = wob - 0.85 * pk * pk;   /* it rocks on "plank", gives as he steps */
       /* the door opens (the roof's life is in roof.js) */
-      if (G.roof.visible) roof.update(T);
+      if (G.roof.visible) roof.update(T, cue);
       const dr = Math.min(1, Math.max(0, (T - cue.door) / 0.7)); dyn.door.rotation.y = -1.35 * (1 - (1 - dr) ** 3);
     },
   };

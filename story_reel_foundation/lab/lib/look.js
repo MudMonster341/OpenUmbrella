@@ -144,7 +144,7 @@ export function setupLook(renderer, scene, camera, L, W, H) {
   composer.addPass(grade);
 
   return {
-    key,
+    key, composer,   /* composer: bench_frame.mjs toggles its passes (2026-11-18) */
     render(T, ghost = 0) { grade.uniforms.uTime.value = T; grade.uniforms.uGhost.value = ghost; if (bloom) bloom.strength = L.bloom.strength * (1 - 0.7 * ghost); composer.render(); },   /* the ghost keeps a little bloom only */
   };
 }

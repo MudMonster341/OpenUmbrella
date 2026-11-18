@@ -59,6 +59,7 @@ def main():
     ap.add_argument("--script", help="the part's films/<slug>/<part>_script.json: must pass scriptcheck before the render")
     ap.add_argument("--composition", default="index.html", help="the lab composition to render (default index.html = Part 1; part2.html = Part 2)")
     ap.add_argument("--master", help="the mixed master to mux (default <film>/<sound-dir>/out/master.wav)")
+    ap.add_argument("--browser-gpu", action="store_true", help="pass hyperframes --browser-gpu: WebGL on the host GPU. A full render's probe picks the GPU by itself; a --start/--end span skips the probe and draws on SwiftShader (CPU), about 25x slower a frame here (bench_frame.mjs, 2026-11-18)")
     ap.add_argument("--draft", action="store_true", help="a cheap draft below 50 fps (the user's choice): autoreview --draft")
     a = ap.parse_args()
     # a later part's plan, voice and sound follow its composition's number: part2.html -> direction_p2.js, timing_p2.js, voice_p2, sound_p2 (ROADMAP D19)
@@ -97,6 +98,7 @@ def main():
         cmd = HF + ["render", "--fps", str(a.fps), "-o", str(silent)] + (["-c", a.composition] if a.composition != "index.html" else [])
         if a.start is not None: cmd += ["--start", str(a.start)]
         if a.end is not None: cmd += ["--end", str(a.end)]
+        if a.browser_gpu: cmd += ["--browser-gpu"]
         t0 = time.time(); r = run(" ".join(f'"{c}"' if " " in c else c for c in cmd), cwd=LAB, log=logs / f"{name}_render.log", shell=True)
         step("render", r.returncode == 0 and silent.exists(), f"{time.time() - t0:.0f} s -> {silent.relative_to(ROOT).as_posix()}" if r.returncode == 0
              else "see " + (logs / f"{name}_render.log").relative_to(ROOT).as_posix())

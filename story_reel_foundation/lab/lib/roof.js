@@ -68,21 +68,39 @@ export function buildRoof(g) {
   /* ======== the railing: square posts on plates, two rails; the one LOOSE bolt sits on the post at x -1.2, clear of everything ======== */
   const steel = surf("paint", { rep: [1, 4], metal: 0.55, tint: 0x9aa3ad });
   const railX = []; for (let px = -4.8; px <= 4.81; px += 1.2) railX.push(+px.toFixed(2));
-  const bolts = [];
+  /* the bolts (2026-11-18, the insert re-built: "the bolt reads as a pale cylinder"): every base plate has four hex bolts on washers, so the
+     loose one reads by comparison. A bolt is a hex head (flat-shaded, so each face catches the light as it turns) with a chamfered top and a
+     flange, on a washer; three sit tight on their washers. The loose one stands about 8 mm proud on its bare, ridged thread and backs out
+     on the word BOLT (update). Sizes are an M10's, a little enlarged to read at phone size. */
+  const PLATE = 0.014, WASH_H = 0.003, HEX_H = 0.0065, SEAT = PLATE + WASH_H + 0.0012 + HEX_H / 2, LIFT = 0.008;
+  const zinc = M(0xd4d9de, 0.3, { metalness: 0.85, flatShading: true }), zincDull = M(0x8a9098, 0.45, { metalness: 0.8, flatShading: true }), washM = M(0xbfc5cc, 0.32, { metalness: 0.85 });
+  const threadM = M(0xb8a88e, 0.35, { metalness: 0.8 });
+  const washerGeo = new THREE.LatheGeometry([[0.0072, 0], [0.0195, 0], [0.0202, 0.0008], [0.0202, 0.0022], [0.0195, WASH_H], [0.0072, WASH_H]].map(([r, y]) => new THREE.Vector2(r, y)), 28);
+  const threadGeo = new THREE.LatheGeometry(Array.from({ length: 19 }, (_, i) => new THREE.Vector2(i % 2 ? 0.0060 : 0.0074, 0.0012 * i)), 16);   /* ridges every 1.2 mm */
+  function hexBolt(parent, mat) {
+    const h = new THREE.Group(); parent.add(h);
+    add(h, new THREE.CylinderGeometry(0.0125, 0.0125, HEX_H, 6), mat, 0, 0, 0);
+    add(h, new THREE.CylinderGeometry(0.0104, 0.0125, 0.0016, 6), mat, 0, HEX_H / 2 + 0.0008, 0);   /* the chamfer */
+    add(h, new THREE.CylinderGeometry(0.0138, 0.0138, 0.0012, 24), mat, 0, -HEX_H / 2 - 0.0006, 0);  /* the flange */
+    add(h, new THREE.CylinderGeometry(0.0062, 0.0062, 0.0006, 16), mat, 0, HEX_H / 2 + 0.0019, 0);   /* the stub end of the thread */
+    return h;
+  }
   for (const px of railX) {
     rbox(g, 0.055, 1.08, 0.055, steel, px, 0.54, -3.0, { r: 0.008 });
     rbox(g, 0.17, 0.014, 0.17, surf("paint", { rep: [1, 1], metal: 0.5, tint: 0x8a9098 }), px, 0.007, -3.0, { r: 0.004 });
     for (const [bx, bz] of [[-0.055, -0.055], [0.055, -0.055], [-0.055, 0.055], [0.055, 0.055]]) {
-      const loose = px === -1.2 && bx > 0 && bz > 0;
-      const b = add(g, new THREE.CylinderGeometry(0.013, 0.013, loose ? 0.03 : 0.012, 6), M(loose ? 0xe4e8ec : 0x6a7078, loose ? 0.18 : 0.5, loose ? { metalness: 0.9, emissive: 0x3a2e22 } : { metalness: 0.9 }), px + bx, loose ? 0.032 : 0.02, -3.0 + bz);
-      if (loose) { dyn.bolt = b; b.userData.keep = true; const w = add(g, new THREE.CylinderGeometry(0.019, 0.019, 0.003, 12), M(0xb8bec6, 0.25, { metalness: 0.9 }), px + bx, 0.016, -3.0 + bz); dyn.washer = w;
-        const th = add(g, new THREE.CylinderGeometry(0.0075, 0.0075, 0.03, 8), M(0x8a6a4a, 0.4, { metalness: 0.8 }), px + bx, 0.012, -3.0 + bz); dyn.thread = th; }   /* bare thread shows under the raised head */
-      bolts.push(b);
+      const loose = px === -1.2 && bx > 0 && bz > 0, x = px + bx, z = -3.0 + bz;
+      add(g, washerGeo, washM, x, PLATE, z);
+      if (!loose) { const b = hexBolt(g, px === -1.2 ? zinc : zincDull); b.position.set(x, SEAT, z); b.rotation.y = (x * 37.1 + z * 11.3) % 1.047; continue; }   /* the loose bolt's post gets the clean zinc too, for the comparison in the insert */
+      const b = hexBolt(g, zinc); b.position.set(x, SEAT + LIFT, z); b.userData.keep = true; dyn.bolt = b; dyn.boltSeat = SEAT; dyn.boltLift = LIFT;
+      add(g, threadGeo, threadM, x, PLATE + WASH_H, z).userData.keep = true;   /* bare thread shows under the raised head */
+      /* a ring of clean metal on the washer where the head used to sit (the rest of the plate is dull): the tell that it has moved */
+      const ring = add(g, new THREE.RingGeometry(0.0078, 0.0132, 28), M(0xeef2f6, 0.15, { metalness: 0.95 }), x, PLATE + WASH_H + 0.0002, z); ring.rotation.x = -Math.PI / 2; ring.userData.keep = true;
     }
   }
   for (const y of [1.08, 0.56]) rbox(g, 9.75, 0.05, 0.05, steel, 0, y, -3.0, { r: 0.012 });
   /* a rust bloom on the post with the loose bolt: the eye goes there in the wide shot too */
-  { const rust = add(g, new THREE.PlaneGeometry(0.07, 0.25), M(0x7a3a1a, 0.95, { transparent: true, opacity: 0.85 }), -1.2, 0.14, -2.971); rust.userData.noAO = true; }
+  { const rust = add(g, new THREE.PlaneGeometry(0.044, 0.07), new THREE.MeshStandardMaterial({ color: 0x4a2a1c, roughness: 0.95, alphaMap: soft(), transparent: true, opacity: 0.5, depthWrite: false }), -1.2, 0.045, -2.971); rust.userData.noAO = true; rust.userData.keep = true; }   /* inside the 55 mm face, soft-edged (it was 70 mm, solid, and read as a board in the insert; then a 16 cm oval read as a sticker) */
 
   /* ======== the stair bulkhead (behind and right): brick, a door ajar with warm light, a caged lamp, a vent with steam, a fan ======== */
   { const bx = 4.2, bz = 2.5;
@@ -191,9 +209,12 @@ export function buildRoof(g) {
     const N = 70, geo = new THREE.SphereGeometry(0.28, 6, 4), car = new THREE.InstancedMesh(geo, B(0xffffff), N); car.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let i = 0; i < N; i++) car.setColorAt(i, new THREE.Color(i % 2 ? 0xff3a2a : 0xfff2d8)); g.add(car); noAO(car); dyn.cars = { car, N, off: Array.from({ length: N }, () => rnd()) }; }
   /* windows going on and off on the near towers (a few at a time), and two TV-blue windows that flicker */
-  { const N = 90, inst = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.75, 0.95), B(0xffffff), N), info = [];
+  { const info = [];
     near.forEach(([x, z, w, d, top], bi) => { for (let k = 0; k < 11; k++) { const fx = x + (Math.floor(rnd() * Math.max(2, Math.round(w / 3))) + 0.5) * (w / Math.max(2, Math.round(w / 3))) - w / 2, fy = -30 + Math.floor(rnd() * ((top + 30) / 3.2)) * 3.2 + 1.6; info.push({ p: [fx, Math.min(fy, top - 1), z + d / 2 + 0.06], per: 5 + 14 * rnd(), ph: rnd(), duty: 0.35 + 0.4 * rnd(), tv: info.length % 37 === 5 }); } });
-    const mtx = new THREE.Matrix4(); info.slice(0, N).forEach((w, i) => { mtx.makeTranslation(...w.p); inst.setMatrixAt(i, mtx); inst.setColorAt(i, new THREE.Color(0)); }); g.add(inst); noAO(inst); dyn.win = { inst, info: info.slice(0, N) }; }
+    /* sized to the windows placed: it was a fixed 90 for 88 windows, and the 2 unplaced instances stood at the roof's origin in white (the
+       "white glow bottom-left" of the wide, 2026-11-18; three.js fills unset instance colours with 1) */
+    const inst = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.75, 0.95), B(0xffffff), info.length);
+    const mtx = new THREE.Matrix4(); info.forEach((w, i) => { mtx.makeTranslation(...w.p); inst.setMatrixAt(i, mtx); inst.setColorAt(i, new THREE.Color(0)); }); g.add(inst); noAO(inst); dyn.win = { inst, info }; }
 
   /* ======== the sky: a gradient dome, stars, a moon with a halo, slow cloud ======== */
   { const c = document.createElement("canvas"); c.width = 4; c.height = 256; const x = c.getContext("2d"), gr = x.createLinearGradient(0, 0, 0, 256);
@@ -224,9 +245,13 @@ export function buildRoof(g) {
   dyn.baked = bake(g);
 
   /* ======== life ======== */
-  function update(T) {
-    /* the loose bolt turns a little and lifts; the bare thread shows */
-    dyn.bolt.rotation.y = T * 1.6; dyn.bolt.position.y = 0.034 + 0.003 * Math.sin(T * 5.2);
+  function update(T, cue = {}) {
+    /* the loose bolt: it sits 8 mm proud and shivers in the wind; on the word BOLT (cue.bolt) it backs out another sixth of a turn and
+       1.5 mm, in two small jerks, the way a vibrating nut walks. Pure function of T. */
+    { const tb = cue.bolt ?? 1e9, step = (u) => Math.min(1, Math.max(0, u)) ** 2 * (3 - 2 * Math.min(1, Math.max(0, u)));
+      const k = 0.55 * step((T - tb + 0.05) / 0.12) + 0.45 * step((T - tb - 0.45) / 0.12), shiver = 0.0004 * Math.sin(T * 41) * Math.sin(T * 3.3);
+      dyn.bolt.rotation.y = 0.35 + 0.025 * Math.sin(T * 2.1) - k * Math.PI / 3;
+      dyn.bolt.position.y = dyn.boltSeat + dyn.boltLift + 0.0015 * k + shiver; }
     /* string lights: the wind sways each strand; bulbs breathe out of phase */
     const mtx = new THREE.Matrix4(), col = new THREE.Color();
     const wind = (t, s) => 0.6 * Math.sin(t * 0.83 + s) + 0.4 * Math.sin(t * 1.71 + 2 * s);

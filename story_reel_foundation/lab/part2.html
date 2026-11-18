@@ -210,8 +210,8 @@
         const sh = shotAt(T), s = sh.s;
         setLook(s.set); sets.update(T, D.cue); placeActors(T, s.set);
         camera.fov = sh.fov; camera.updateProjectionMatrix(); camera.position.set(...sh.pos); camera.lookAt(...sh.look); camera.updateMatrixWorld();
-        if (s.faceKey && actors[s.faceKey.actor]) { const hp = actors[s.faceKey.actor].bones.Head.getWorldPosition(new THREE.Vector3()), fo = s.faceKey.offset;
-          closeKey.position.set(hp.x + fo[0], hp.y + fo[1], hp.z + fo[2]); closeKey.target.position.copy(hp); closeKey.intensity = s.faceKey.intensity * 5; } else closeKey.intensity = 0;
+        if (s.faceKey && (s.faceKey.at || actors[s.faceKey.actor])) { const hp = s.faceKey.at ? new THREE.Vector3(...O(s.set, s.faceKey.at)) : actors[s.faceKey.actor].bones.Head.getWorldPosition(new THREE.Vector3()), fo = s.faceKey.offset;   /* faceKey.at: a set-local point instead of a head (the bolt insert, 2026-11-18) */
+          closeKey.position.set(hp.x + fo[0], hp.y + fo[1], hp.z + fo[2]); closeKey.target.position.copy(hp); closeKey.intensity = s.faceKey.intensity * 5; closeKey.color.setHex(s.faceKey.color ?? 0xffe2c4); closeKey.angle = s.faceKey.angle ?? 0.32; } else closeKey.intensity = 0;
         const blurred = s.kind === "phone" || s.kind === "insert";
         canvas.style.filter = blurred ? `blur(${s.blur ?? 12}px) brightness(0.72)` : "none"; canvas.style.transform = blurred ? "scale(1.06)" : "none";
         applyPhone(ins, T, s.kind === "phone" ? { ...s.phone, t0: s.t0, t1: s.t1, bg: "blur" } : null);
@@ -248,7 +248,7 @@
         for (const [k, r] of Object.entries(roles)) { actors[k] = makeActor(rig, r.look); scene.add(actors[k].root); }
       })();
       window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {}; window.__hf.buildReady["part2"] = ready;
-      window.__lab = { actors, renderAt, THREE, D };
+      window.__lab = { actors, renderAt, THREE, D, scene, renderer, look, camera };   /* scene/renderer/look/camera: for bench_frame.mjs */
       let queue = ready;
       window.addEventListener("hf-seek", (e) => { const time = e.detail.time; queue = queue.catch(() => {}).then(() => ready).then(() => renderAt(time)); e.detail.waitUntil?.(queue); });
       ready.then(() => renderAt(window.__hfThreeTime || 0)).catch((err) => { console.error(err); throw err; });
