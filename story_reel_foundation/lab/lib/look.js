@@ -110,7 +110,7 @@ export function setupLook(renderer, scene, camera, L, W, H) {
   scene.traverse((o) => {
     if (!o.isMesh) return;
     const lit = o.material && !o.material.isMeshBasicMaterial;
-    o.castShadow = lit && !o.userData.noShadow; o.receiveShadow = lit;
+    o.castShadow = lit && !o.userData.noShadow; o.receiveShadow = lit && !o.userData.noReceive;   /* noReceive: far scenery skips the shadow lookup (2026-11-18, render cost) */
   });
 
   const dofL = L.dof ?? {}, useDof = dofL.enabled !== false;

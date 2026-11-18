@@ -57,7 +57,13 @@ def main():
     ap.add_argument("--fps", type=int, default=60); ap.add_argument("--start", type=float); ap.add_argument("--end", type=float)
     ap.add_argument("--no-render", action="store_true"); ap.add_argument("--skip-gates", action="store_true")
     ap.add_argument("--script", help="the part's films/<slug>/<part>_script.json: must pass scriptcheck before the render")
+    ap.add_argument("--composition", default="index.html", help="the lab composition to render (default index.html = Part 1; part2.html = Part 2)")
+    ap.add_argument("--master", help="the mixed master to mux (default <film>/<sound-dir>/out/master.wav)")
+    ap.add_argument("--draft", action="store_true", help="a cheap draft below 50 fps (the user's choice): autoreview --draft")
     a = ap.parse_args()
+    # a later part's plan, voice and sound follow its composition's number: part2.html -> direction_p2.js, timing_p2.js, voice_p2, sound_p2 (ROADMAP D19)
+    m_ = re.match(r"part(\d+)\.html$", a.composition); suf = f"_p{m_.group(1)}" if m_ else ""
+    direction, timing, voice_dir, sound_dir = f"direction{suf}.js", f"timing{suf}.js", f"voice{suf}", f"sound{suf}"
     film = (ROOT / a.film).resolve(); name = f"{a.name}_{a.version}"
     rd = film / "renders"; silent = rd / "lab_silent" / f"{name}_silent.mp4"; final = rd / f"{name}.mp4"; logs = rd / "logs"
     for d in (silent.parent, logs, film / "review", EVID): d.mkdir(parents=True, exist_ok=True)
@@ -75,13 +81,20 @@ def main():
     if not a.skip_gates:
         g = run([sys.executable, "tools/guards/check_guards.py"], log=logs / f"{name}_guards.log")
         step("guards", g.returncode == 0, "; ".join(l for l in g.stdout.splitlines() if l.startswith(("FAIL", "WARN"))) or "all pass")
-        for chk in ("check_direction.mjs", "check_bus.mjs", "check_crash_shot.mjs", "check_smoke.mjs"):
-            r = run(["node", chk], cwd=LAB, log=logs / f"{name}_{chk}.log")
+        # each composition has its own lab gates (2026-11-18): Part 1's are about its bus and its crash shot; every later part runs
+        # check_cast.mjs against its script's cast spec (heights by role, measured in the browser)
+        gates = [["check_direction.mjs"], ["check_bus.mjs"], ["check_crash_shot.mjs"], ["check_smoke.mjs"]] if a.composition == "index.html" else []
+        if a.composition != "index.html":   # the probe builds cast_p2.js; Part 1's actors are built in index.html, not measured yet
+            if not a.script: step("check_cast.mjs", False, "a later part needs --script (the cast spec)")
+            gates.append(["check_cast.mjs", "--script", str((ROOT / a.script).resolve())])
+        for g_ in gates:
+            chk = g_[0]
+            r = run(["node", *g_], cwd=LAB, log=logs / f"{name}_{chk}.log")
             step(chk, r.returncode == 0, r.stdout.strip().splitlines()[-1] if r.returncode == 0 else r.stdout.strip()[-400:])
 
     # 2. render
     if not a.no_render:
-        cmd = HF + ["render", "--fps", str(a.fps), "-o", str(silent)]
+        cmd = HF + ["render", "--fps", str(a.fps), "-o", str(silent)] + (["-c", a.composition] if a.composition != "index.html" else [])
         if a.start is not None: cmd += ["--start", str(a.start)]
         if a.end is not None: cmd += ["--end", str(a.end)]
         t0 = time.time(); r = run(" ".join(f'"{c}"' if " " in c else c for c in cmd), cwd=LAB, log=logs / f"{name}_render.log", shell=True)
@@ -96,13 +109,15 @@ def main():
         step("span frames", True, out.relative_to(ROOT).as_posix()); return 0
 
     # 3. mux with the current master (G9 has checked it matches the timeline)
-    master = film / "sound" / "out" / "master.wav"
+    master = Path(a.master).resolve() if a.master else film / sound_dir / "out" / "master.wav"
+    step("master exists", master.exists(), master.relative_to(ROOT).as_posix() if master.is_relative_to(ROOT) else str(master))
     r = run(["ffmpeg", "-v", "error", "-y", "-i", str(silent), "-i", str(master), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", str(final)])
     pr = run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height,r_frame_rate,duration", "-of", "csv=p=0", str(final)]).stdout.split()
     step("mux", r.returncode == 0, " | ".join(pr))
 
     # 4. the auto-reviewer, quiet; a tile of every failure's moments
-    r = run([str(PY_REVIEW), "tools/autoreview/autoreview.py", a.film, "--video", str(final), "--quiet"], log=logs / f"{name}_review.log")
+    r = run([str(PY_REVIEW), "tools/autoreview/autoreview.py", a.film, "--video", str(final), "--quiet", "--direction", direction, "--timing", timing,
+             "--voice-dir", voice_dir, "--sound-dir", sound_dir] + (["--draft"] if a.draft else []), log=logs / f"{name}_review.log")
     print(r.stdout.strip())
     rep = json.loads((film / "review" / "autoreview.json").read_text(encoding="utf-8"))
     times = []

@@ -123,10 +123,11 @@ function makeHead(look, clock) {
   const browHex = new THREE.Color(look.brow ?? look.hair).lerp(new THREE.Color(look.skin), FEM ? 0.22 : 0.08).multiplyScalar(FEM ? 0.95 : 0.8);
   const browM = new THREE.MeshStandardMaterial({ color: browHex, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
   const R = 0.15, SEED = (look.skin % 97) + 1;
+  const YOUNG = !FEM && look.age != null && look.age < 23;   /* 2026-11-18: Part 2's younger brother, 19 */
   /* the skull, then the lower face reshaped: a narrower jaw and chin (hers more so) and a touch of cheek fullness */
   const skullGeo = new THREE.SphereGeometry(R, 48, 32);
   {
-    const jaw = FEM ? 0.24 : 0.08, chin = FEM ? 0.05 : 0.03, cheek = FEM ? 0.04 : 0.0, p = skullGeo.attributes.position;
+    const jaw = FEM ? 0.24 : YOUNG ? 0.15 : 0.08, chin = FEM ? 0.05 : YOUNG ? 0.015 : 0.03, cheek = FEM ? 0.04 : YOUNG ? 0.03 : 0.0, p = skullGeo.attributes.position;
     for (let v = 0; v < p.count; v++) {
       const y = p.getY(v), t = clamp01((-y / (R * 1.06) - 0.05) / 0.9);
       const k = 1 - jaw * Math.pow(t, 1.3) + cheek * Math.sin(Math.PI * clamp01(t * 1.7));
@@ -136,7 +137,7 @@ function makeHead(look, clock) {
   }
   const skull = new THREE.Mesh(skullGeo, skin); skull.scale.set(1, 1.06, 0.98); H.add(skull);
   /* (no separate jaw sphere: where it crossed the skull it drew a jagged seam across the chin, round 2) */
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.024, 20, 14), std(new THREE.Color(look.skin).multiplyScalar(0.94), 0.5)); nose.position.set(0, -0.012, R * 0.97); nose.scale.set(FEM ? 0.82 : 1, FEM ? 0.8 : 0.9, FEM ? 0.75 : 0.85); H.add(nose);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.024, 20, 14), std(new THREE.Color(look.skin).multiplyScalar(0.94), 0.5)); nose.position.set(0, -0.012, R * 0.97); nose.scale.set(FEM ? 0.82 : YOUNG ? 0.9 : 1, FEM ? 0.8 : YOUNG ? 0.84 : 0.9, FEM ? 0.75 : YOUNG ? 0.8 : 0.85); H.add(nose);
   for (const s of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 12), skin); ear.position.set(s * R * 0.98 * (FEM ? 0.93 : 1), -0.006, 0); ear.scale.set(0.45, 1, 0.8); H.add(ear); }
 
   /* ---- hair ---- */
@@ -220,7 +221,7 @@ function makeHead(look, clock) {
   const white = new THREE.MeshStandardMaterial({ color: 0xf7f5f0, roughness: 0.3 });
   const irisM = new THREE.MeshBasicMaterial({ color: look.eye ?? 0x5a3a22 }), inkM = new THREE.MeshBasicMaterial({ color: 0x0e0a08 }), shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const lashM = new THREE.MeshBasicMaterial({ color: FEM ? 0x120a08 : new THREE.Color(look.skin).multiplyScalar(0.42) });
-  const ER = 0.033, ES = FEM ? 1.08 : 1;
+  const ER = 0.033, ES = FEM ? 1.08 : YOUNG ? 1.05 : 1;
   const eyes = [-1, 1].map((s) => {
     const g = new THREE.Group(); g.position.set(s * 0.05, 0.02, R * 0.76); g.scale.setScalar(ES); H.add(g);
     const ball = new THREE.Mesh(new THREE.SphereGeometry(ER, 28, 20), white); g.add(ball);
@@ -324,7 +325,14 @@ export function mixExpr(a, b, u) {
 /* ------------------------------------------------------------------ an actor */
 export function makeActor(gltf, look) {
   /* look: { skin, hair, top, bottom, shoe, build: "male" (default) | "female", hairStyle: "short" (default) | "long" | "ponytail" | "bun",
-             lip, eye, brow, tie, hood }.  The second character is the same rig with build "female". */
+             lip, eye, brow, tie, hood,
+             height, age, shoulderIn, scarf }.  The second character is the same rig with build "female".
+     2026-11-18 (Part 2's younger brother, the cast spec in the part's script JSON; check_cast.mjs measures it):
+       height     standing height relative to the default male rig (the lead = 1). Legs, torso and arms scale; the head keeps its size
+                  (a uniformly scaled adult shrinks the head and reads as a child). Solved by measuring the rest pose, not by formula.
+       age        a number; under 23 gives a younger face: a softer jaw, fuller cheeks, slightly larger eyes, a smaller nose. The male
+                  rig has no stubble at any age (none is modelled), so "no stubble" holds by default.
+       shoulderIn how far each shoulder moves in, m (male 0.014, female 0.034): a slighter frame. */
   const FEM = look.build === "female";
   const model = SkeletonUtils.clone(gltf.scene);
   const root = new THREE.Group(); root.add(model);
@@ -573,6 +581,12 @@ export function makeActor(gltf, look) {
   collar.position.set(n.x, n.y - (FEM ? 0.05 : 0.035), n.z + 0.005); collar.rotation.x = Math.PI / 2 - 0.12; root.add(collar); bones.spine_03.attach(collar);
   const hood = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), top); hood.scale.set(0.135, 0.075, 0.075);   /* the hood, folded down behind the neck */
   hood.position.set(n.x, n.y - 0.035, n.z - 0.075); hood.rotation.set(0.25, 0, 0 + 0 * Math.PI); root.add(hood); bones.spine_03.attach(hood); hood.visible = look.hood ?? !FEM;   /* her long hair falls where the hood would gather */
+  /* look.scarf (2026-11-18): a knitted scarf round the neck, one end hanging down the chest, in the given colour */
+  if (look.scarf != null) {
+    const sm = new THREE.MeshStandardMaterial({ color: look.scarf, roughness: 0.95 });
+    const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.034, 14, 36), sm); wrap.position.set(n.x, n.y - 0.005, n.z + 0.008); wrap.rotation.x = Math.PI / 2 - 0.1; root.add(wrap); bones.neck_01.attach(wrap);
+    const end = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.24, 0.03), sm); end.position.set(n.x + 0.045, n.y - 0.14, n.z + 0.085); end.rotation.z = 0.08; root.add(end); bones.spine_03.attach(end);
+  }
   const s1 = wp("spine_01");
   for (const s of ["l", "r"]) {
     const Hh = wp("hand_" + s), Mm = wp("middle_02_" + s), Tt = wp("thumb_02_" + s);
@@ -611,7 +625,7 @@ export function makeActor(gltf, look) {
   {
     const sk = skinned[0].skeleton, bindQ = (name) => { const i = sk.bones.findIndex((b) => b.name === name); return i < 0 ? null : new THREE.Quaternion().setFromRotationMatrix(sk.boneInverses[i].clone().invert()); };
     const sh = (name, d) => { const b = sk.bones.find((x) => x.name === name); const pq = b && b.parent && bindQ(b.parent.name); const q = pq ? pq.invert() : new THREE.Quaternion(); shifts[name] = d.clone().applyQuaternion(q); };
-    const sho = FEM ? 0.034 : 0.014, hip = FEM ? 0.016 : 0;
+    const sho = look.shoulderIn ?? (FEM ? 0.034 : 0.014), hip = FEM ? 0.016 : 0;
     for (const side of ["l", "r"]) {
       const sg = bones["upperarm_" + side].getWorldPosition(new THREE.Vector3()).x > 0 ? 1 : -1;      /* which side of the midline this bone is on */
       sh("upperarm_" + side, new THREE.Vector3(-sg * sho, -0.004, 0));
@@ -667,8 +681,22 @@ export function makeActor(gltf, look) {
   }
   const toLocal = (v) => root.worldToLocal(v.clone());
 
+  /* look.height (2026-11-18): the body scales by r, the head is counter-scaled so its world size is unchanged. The standing height is
+     measured (head top, rest pose) for two values of r and solved by the secant method: the head's offset from its bone scales with the
+     body, so no closed form is exact. The target is look.height x the default male rig's height, measured the same way. */
+  if (look.height != null && look.height !== 1) {
+    const top = () => { root.updateMatrixWorld(true); skinned.forEach((o) => o.skeleton.update()); return new THREE.Box3().setFromObject(head.group).max.y - new THREE.Box3().setFromObject(model, true).min.y; };
+    const setR = (r) => { const r0 = root.scale.x / base; root.scale.setScalar(base * r); head.group.scale.multiplyScalar(r0 / r); };
+    const base = root.scale.x, ref = top() / (FEM ? 0.95 : 1), want = look.height * ref;   /* ref: the default (unscaled) rig's height */
+    let ra = 1, ha = top(), rb = look.height, hb;
+    for (let k = 0; k < 4; k++) { setR(rb); hb = top(); if (Math.abs(hb - want) < 1e-4) break; const rn = rb + (want - hb) * (rb - ra) / (hb - ha); ra = rb; ha = hb; rb = rn; }
+  }
+  /* standing(): the actor's height as posed now, feet to head top, in metres. Skinned vertices, not the cached bind-pose box (three caches
+     a skinned mesh's box from the bind pose). check_cast.mjs calls it after perform() */
+  const standing = () => { root.updateMatrixWorld(true); skinned.forEach((o) => o.skeleton.update()); const b = new THREE.Box3().setFromObject(model, true); b.union(new THREE.Box3().setFromObject(head.group)); return b.max.y - b.min.y; };
+
   return {
-    root, bones, cup, phone, head,
+    root, bones, cup, phone, head, standing,
     /* gestures layered on top of the clip: { kind: "phone" | "itch", t0, t1 } (world time), eased in and out over 0.25 s */
     gesture(T, list) {
       clock.t = T;

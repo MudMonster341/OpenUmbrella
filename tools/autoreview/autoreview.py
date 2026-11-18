@@ -4,6 +4,9 @@
     tools/reelkit/.venv/Scripts/python.exe tools/autoreview/autoreview.py films/<slug> \
         --video films/<slug>/renders/<file>.mp4 [--no-asr]
 
+A later part passes its own plan, voice and sound (2026-11-18, ROADMAP D19):
+    ... --direction direction_p2.js --timing timing_p2.js --voice-dir voice_p2 --sound-dir sound_p2 [--draft]
+
 It measures the render, the sound stems and the voice files against the PLAN (shots, words, the hit; exported by
 story_reel_foundation/lab/export_plan.mjs) and against every rule we have learned. Each check names its source: a note
 from the user or an ERRORS.md entry. Add a check whenever the user flags something measurable (FEEDBACK.md, the
@@ -24,6 +27,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 LAB = ROOT / "story_reel_foundation" / "lab"
 RESULTS: list[dict] = []
+DRAFT = False          # --draft: a cheap 30 fps draft the user asked for; V1 becomes a warning and V7's limit scales with the frame rate
 
 
 def check(cid, name, ok, value, limit, source, blocker=True):
@@ -189,8 +193,8 @@ def picture(plan, video, info):
         shift[i], conf[i] = global_shift(mid[i - 1], mid[i], win)
     shift_full = shift * (1080 / 108)                   # in pixels of the 1080-wide frame
 
-    check("V1", "Frame rate", fps >= 50, f"{fps:.2f} fps", ">= 50",
-          "the user 2026-11-16: 'it feels stop motion at points, maybe we need higher fps'")
+    check("V1", "Frame rate", fps >= 50, f"{fps:.2f} fps" + (" (a draft: 30 fps is the user's token choice; the full film is 60)" if DRAFT else ""), ">= 50",
+          "the user 2026-11-16: 'it feels stop motion at points, maybe we need higher fps'", blocker=not DRAFT)
     check("V2", "Size", (info["w"], info["h"]) == (1080, 1920), f"{info['w']}x{info['h']}", "1080x1920", "GOAL.md")
     check("V3", "Length matches the plan", abs(info["vdur"] - plan["end"]) <= 2 / fps + 0.02, f"{info['vdur']:.3f} s vs plan {plan['end']:.3f} s",
           "within 2 frames", "voice before picture: the picture is timed to measured audio")
@@ -202,7 +206,7 @@ def picture(plan, video, info):
     bounds = [s["t0"] for s in plan["shots"][1:] if not s.get("cont")]
     conts = [s["t0"] for s in plan["shots"][1:] if s.get("cont")]   # same camera on both sides: no cut to find, by design
     hs = [(h["at"], h["at"] + h["dur"]) for h in plan.get("hitstop", [])]
-    near_hit = lambda x: abs(x - plan["impact"]) < 0.4
+    near_hit = lambda x: plan.get("impact") is not None and abs(x - plan["impact"]) < 0.4   # a part with no hit (Part 2): nothing exempt
     loc = np.array([np.median(d[max(1, i - 6):i + 7]) for i in range(n)])
     cut_idx = [i for i in range(1, n) if d[i] > max(6.0, 5 * loc[i])]
     cuts = []
@@ -234,8 +238,8 @@ def picture(plan, video, info):
         mean_lum = float(luma[i0:i1].mean())
         per_shot.append({"shot": s["i"], "t0": s["t0"], "kind": s["kind"], "px_per_frame_p95": round(p95, 1), "px_per_s_p95": round(p95 * fps, 0),
                          "luma": round(mean_lum, 1), "motion": round(float(np.median(d[i0:i1])), 2)})
-        lim = 30 if s.get("fast") else 18                                       # a shot marked fast in direction.js: the user wanted the crash faster
-        if p95 > lim and not (s["t0"] <= plan["impact"] < s["t1"]): judder.append(f"shot {s['i']} ({s['t0']:.2f} s): {p95:.0f} px/frame (limit {lim})")
+        lim = (30 if s.get("fast") else 18) * (60 / fps if DRAFT else 1)        # a shot marked fast in direction.js: the user wanted the crash faster; a draft at 30 fps moves 2x per frame
+        if p95 > lim and not (plan.get("impact") is not None and s["t0"] <= plan["impact"] < s["t1"]): judder.append(f"shot {s['i']} ({s['t0']:.2f} s): {p95:.0f} px/frame (limit {lim})")
         dd = d[i0:i1]; mov = np.median(dd)
         if mov > 0.6 and s["kind"] == "world":                                   # inserts: a ticking hand reads as held frames
             held = int(((dd < 0.25 * np.array([np.median(dd[max(0, k - 3):k + 4]) for k in range(len(dd))])) ).sum())
@@ -339,8 +343,8 @@ def picture(plan, video, info):
 
 
 # ------------------------------------------------------------------------------------------------ sound
-def sound(plan, film, video, info):
-    out = film / "sound" / "out"
+def sound(plan, film, video, info, sound_dir="sound"):
+    out = film / sound_dir / "out"
     r = sh(["ffmpeg", "-hide_banner", "-nostats", "-i", str(video), "-af", "ebur128=peak=true", "-f", "null", "-"]).stderr
     tail = r[r.rfind("Summary"):]
     g = lambda k: float(re.search(k + r":\s*(-?[\d.]+)", tail).group(1))
@@ -355,6 +359,14 @@ def sound(plan, film, video, info):
         check("A5", "Picture and sound the same length", abs(info["vdur"] - info["adur"]) <= 1 / info["fps"] + 0.02,
               f"video {info['vdur']:.3f} s, audio {info['adur']:.3f} s", "within a frame", "MEMORY: never -shortest, check both")
     x, sr = audio_of(video)                                                       # the sound IN the video under review, not today's files
+    if not plan.get("prehit"):                                                    # a part with no single hit (Part 2's falls are cut on)
+        for cid, nm in (("A6", "The silence before the hit is quiet"), ("A7", "The hit jumps out of the silence"), ("A8", "The loudest moment is the hit")):
+            check(cid, nm, True, "n/a: this part's plan has no hit (impact null)", "-", "export_plan.mjs: impact/prehit are null", blocker=False)
+    else: hit_checks(plan, x, sr)
+    a9(out, x, sr)
+
+
+def hit_checks(plan, x, sr):
     p0, p1 = plan["prehit"]
     sil = x[int((p0 + 0.15) * sr):int(p1 * sr)]
     sil_db = db(np.sqrt((sil ** 2).mean())) if len(sil) else 0
@@ -365,6 +377,9 @@ def sound(plan, film, video, info):
     loud_t = loudest_time(x, sr)
     check("A8", "The loudest moment is the hit", abs(loud_t - plan["impact"]) <= 0.6, f"loudest at {loud_t:.2f} s (hit {plan['impact']:.2f})", "within 0.6 s of the hit",
           "ERR-0017: the clock tock was louder than the crash")
+
+
+def a9(out, x, sr):
     stems_fresh = stems_match(out / "narration.wav", len(x) / sr)
     if not stems_fresh:
         check("A9", "The music sits under the voice", False, "the stems in sound/out do not belong to this video", "stems of this render", "a check must measure the thing it reports on", blocker=False)
@@ -377,9 +392,9 @@ def sound(plan, film, video, info):
               "GOAL A2 ducking; the user: voice 'sharper and clearer'")
 
 
-def voice(plan, film, asr):
+def voice(plan, film, asr, voice_dir="voice", sound_dir="sound"):
     """every voiced file is speech, not breath; and (with ASR) says the script's words"""
-    audio = film / "voice" / "audio"
+    audio = film / voice_dir / "audio"
     ids = [l["id"] for l in plan["lines"]]
     breath = []
     for f in sorted(audio.glob("L*.wav")):
@@ -400,13 +415,13 @@ def voice(plan, film, asr):
     check("S1", "Every voice take is speech, not breath", not breath, "; ".join(breath) or "all voiced", ">= 30% of loud frames voiced",
           "ERR-0017: L06 'And...' was 1.1 s of breath for four versions")
     # emotion (2026-11-18, the user: "maybe the audio needs to better convey emotion"). Warnings: thresholds are provisional
-    dl = film / "voice" / "delivery.json"
+    dl = film / voice_dir / "delivery.json"
     if dl.exists():
         import emotion  # noqa: E402  (tools/autoreview/emotion.py, beside this file)
         for c in emotion.run(audio, dl)[0]:
             check(c["id"], c["name"], c["pass"], c["value"], c["limit"],
                   "the user 2026-11-18: 'the audio needs to better convey emotion'; tools/autoreview/emotion.py (provisional limits)", blocker=False)
-    with wave.open(str(film / "sound" / "out" / "voice_clean" / f"{ids[0]}.wav")) as w:
+    with wave.open(str(film / sound_dir / "out" / "voice_clean" / f"{ids[0]}.wav")) as w:
         check("S2", "The voice is mixed at 48 kHz from a real resampler", w.getframerate() == 48000, f"{w.getframerate()} Hz", "48000",
               "ERR-0017: linear resampling mirrored hiss above 12 kHz", blocker=True)
     if not asr:
@@ -474,14 +489,21 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("film"); ap.add_argument("--video", required=True); ap.add_argument("--no-asr", action="store_true")
     ap.add_argument("--quiet", action="store_true", help="print only failures and warnings (the full table is in AUTOREVIEW.md)")
+    ap.add_argument("--direction", default="direction.js", help="the part's direction module in the lab (default direction.js = Part 1)")
+    ap.add_argument("--timing", default="timing.js", help="the part's timing module in the lab (default timing.js = Part 1)")
+    ap.add_argument("--voice-dir", default="voice", help="the part's voice folder in the film (default voice = Part 1)")
+    ap.add_argument("--sound-dir", default="sound", help="the part's sound folder in the film (default sound = Part 1)")
+    ap.add_argument("--draft", action="store_true", help="a cheap draft below 50 fps the user asked for: V1 warns, V7 scales with fps")
     a = ap.parse_args()
+    global DRAFT; DRAFT = a.draft
     film, video = (ROOT / a.film).resolve() if not Path(a.film).is_absolute() else Path(a.film), Path(a.video).resolve()
-    plan = json.loads(sh(["node", "export_plan.mjs"], cwd=LAB).stdout)
+    plan = json.loads(sh(["node", "export_plan.mjs", a.direction, a.timing], cwd=LAB).stdout)
     info = probe(video)
-    plan_gates()
+    if a.direction == "direction.js": plan_gates()                     # D1/D2 read Part 1's direction.js and its bus: not a later part's
+    else: check("D1", "Direction rules", True, f"n/a: check_direction.mjs and check_bus.mjs read Part 1's direction.js, not {a.direction}", "-", "ROADMAP D19", blocker=False)
     per_shot, cuts = picture(plan, video, info)
-    sound(plan, film, video, info)
-    voice(plan, film, not a.no_asr)
+    sound(plan, film, video, info, a.sound_dir)
+    voice(plan, film, not a.no_asr, a.voice_dir, a.sound_dir)
 
     fails = [r for r in RESULTS if not r["pass"] and r["blocker"]]
     warns = [r for r in RESULTS if not r["pass"] and not r["blocker"]]

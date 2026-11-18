@@ -26,6 +26,14 @@ The format (all keys required unless marked optional):
             "spoken": [{"line": "L02", "phrase": str, "value": int}], "asserts": [{"expr": str, "why": str}]},   # optional
  "delivery": "path/to/delivery.json" | null, "allow_pause": {"<line id>": seconds}   # optional
 }
+Added 2026-11-18 with docs/SCRIPT_PLAYBOOK.md (required when the script says "schema": 2; a warning in older scripts):
+ "schema": 2, "hook": {..., "device": "stakes clock" | "open loop" | ...},
+ "ending": {"answers": [{"word": "<vote word on the end card>", "line": "L16", "says": "<phrase spoken there>", "cost": str}] x 2,
+            "shape": "<e.g. save or let fall>"},
+ "clock": ["8:09", ...],                                  # every clock time shown or said (K3)
+ "allow_words": [str], "allow_repeat": {"hook device" | "ending shape": "<why, who, when>"}   # optional escapes, each with a reason
+Families added: N ending (N1 both halves, N2 the end card names both), R4 a new shape per part, L5/L6 the ledger across parts,
+S6 a measured pace, T6 plain words, T7 nothing a cold viewer missed, K3 the story clock, A5 the timing file's words (ERR-0023/0024).
 """
 import glob, json, os, re, sys, wave
 
@@ -71,6 +79,22 @@ def voice_rate(audio_dir, lines):
 
 def speed_ok(rate, ref, tol=0.08):
     return abs(rate / ref - 1) <= tol
+
+
+def timing_words(path):
+    """{line id: [normalised caption words]} from a generated timing file (timing.js / timing_p2.js / a JSON with 'captions')."""
+    tx = open(path, encoding="utf-8").read()
+    out = {}
+    for c in json.loads(tx[tx.index("{"):tx.rindex("}") + 1])["captions"]:
+        out.setdefault(c["line"], []).extend(w for w in norm(c["word"]) if w)
+    return out
+
+
+def timing_mismatch(path, lines):
+    """line ids whose timing-file words differ from the script's spoken words, plus ids the timing has and the script lacks.
+    [] = the timing file was built from these lines (A5, guard G12; ERR-0023, ERR-0024)."""
+    tw = timing_words(path); ids = [x["id"] for x in lines]
+    return [x["id"] for x in lines if tw.get(x["id"], []) != [w for w in norm(x["say"]) if w]] + sorted(set(tw) - set(ids))
 
 
 def check(path):
@@ -300,6 +324,91 @@ def check(path):
             except Exception as e:
                 ok = False; a = dict(a, why=a["why"] + f" (error: {e})")
             if not ok: F.append(f"L4 {a['why']}  [{a['expr']}]")
+    # ---- 2026-11-18, docs/SCRIPT_PLAYBOOK.md: the playbook's rules that can be measured. A script with "schema": 2 must declare
+    # the keys they read (FAIL); an older script gets a warning, so parts approved before these rules are not re-gated by them.
+    strict = d.get("schema", 1) >= 2
+    def need(m): (F if strict else W).append(m)
+    earlier = sib[:sib.index(me)] if me in sib else []
+    def load(q): return json.load(open(q, encoding="utf-8"))
+    def phrase_in(p, s): ph = " ".join(w for w in norm(p) if w); return bool(ph) and (" " + ph + " ") in (" " + " ".join(norm(s)) + " ")
+    # N1/N2 the ending (STORY P2.19: "both halves of the choice said plainly"; P2.20 #7: the end card named one answer and tilted
+    # the vote). "ending": {"answers": [{"word": <the vote word>, "line": id, "says": <phrase spoken there>, "cost": str}] x 2, "shape"}
+    en = d.get("ending")
+    if not en: need("N1 no 'ending' declared ({answers: two of {word, line, says, cost}, shape})")
+    else:
+        ans = en.get("answers", [])
+        if len(ans) != 2: F.append(f"N1 the ending declares {len(ans)} answers, not 2")
+        else:
+            if ans[0].get("line") == ans[1].get("line"): F.append("N1 both answers sit on one line: give each half its own line")
+            for a_ in ans:
+                x = next((y for y in L if y["id"] == a_.get("line")), None)
+                if not x: F.append(f"N1 answer '{a_.get('word')}': line {a_.get('line')} unknown"); continue
+                if x["job"] != order[-2]: F.append(f"N1 answer '{a_['word']}' is on {x['id']} ({x['job']}), not in the '{order[-2]}' section")
+                if not phrase_in(a_.get("says", ""), x["say"]): F.append(f"N1 {x['id']} does not say its half: '{a_.get('says')}'")
+                if not str(a_.get("cost", "")).strip(): F.append(f"N1 answer '{a_['word']}' states no cost")
+            card = " ".join(L[-1]["screen"] + L[-1]["caption"]).upper()
+            miss = [a_["word"] for a_ in ans if not re.search(rf"\b{re.escape(a_['word'].upper())}\b", card)]
+            if miss: F.append(f"N2 the end card does not name {miss}: name both answers, or it tilts the vote")
+    # R4 a new shape each part (STORY P2.5 #18, P2.20 #14: the hook device and the ending's shape repeated Part 1). A repeat the user
+    # chose is declared in "allow_repeat": {"hook device" | "ending shape": "<why, who, when>"} and warns instead.
+    mine = {"hook device": h.get("device"), "ending shape": (en or {}).get("shape")}
+    for k, v in mine.items():
+        if not v: need(f"R4 no {k} declared (hook.device, ending.shape), so a repeat of an earlier part's cannot be caught")
+    for q in earlier:
+        qd = load(q)
+        for k, v in (("hook device", qd.get("hook", {}).get("device")), ("ending shape", (qd.get("ending") or {}).get("shape"))):
+            if v and mine[k] and v.strip().lower() == mine[k].strip().lower():
+                why = d.get("allow_repeat", {}).get(k)
+                (W if why else F).append(f"R4 the {k} '{v}' repeats {os.path.basename(q)}" + (f" (allowed: {why})" if why else ""))
+    # L5/L6 rules that hold across parts (STORY 7b B1, 7c #1: the price arithmetic broke at a seam). This part's ledger starts where
+    # the previous part's ended, and no price falls below the previous part's highest ("each costs more", as a viewer heard it).
+    if g and earlier:
+        qg = load(earlier[-1]).get("ledger")
+        if qg:
+            qend = qg["start"] + sum(s["change"] for s in qg["steps"])
+            if g["start"] != qend: F.append(f"L5 the ledger starts at {g['start']:,}; {os.path.basename(earlier[-1])} ended at {qend:,}")
+            if qg.get("prices") and g.get("prices") and min(g["prices"]) < max(qg["prices"]):
+                F.append(f"L6 a price of {min(g['prices']):,} is below {os.path.basename(earlier[-1])}'s highest, {max(qg['prices']):,}")
+    # S6 the length is estimated at a MEASURED pace (STORY 7c/7e: the template's assumed 2.5 words/s put Part 1 at ~96 s; the voice
+    # measured 3.43 words/s on the timeline). Within 8% of the previous timed part's words / timeline seconds.
+    ref_pace = None
+    for q in earlier[::-1]:
+        qd = load(q)
+        if qd.get("timing"):
+            try:
+                tx = open(os.path.join(ROOT, qd["timing"]), encoding="utf-8").read()
+                ref_pace = sum(len(words(x["say"])) for x in qd["lines"]) / json.loads(tx[tx.index("{"):tx.rindex("}") + 1])["end"]; break
+            except (OSError, ValueError, KeyError, ZeroDivisionError) as e:
+                W.append(f"S6 {os.path.basename(q)}'s timing unreadable ({e})")
+    if ref_pace and not speed_ok(d["pace_wps"], ref_pace):
+        F.append(f"S6 pace_wps {d['pace_wps']} vs {ref_pace:.2f} words/s measured on the previous part's timeline (> 8% apart)")
+    elif not ref_pace and not re.search(r"\d", d.get("pace_source", "")): need("S6 pace_source names no measurement (words in seconds)")
+    # T6 plain words (ERR-0011: four critic rounds passed regional words a listener could not follow; SCRIPT_V8_DRAFT section 5).
+    # T7 nothing that tells a cold viewer they missed something (STORY P2.15 #4). A word the story needs goes in "allow_words".
+    allow = {w.lower() for w in d.get("allow_words", [])}
+    PLAIN = {"till": "the counter", "kerb": "the road", "pavement": "the street", "fortnight": "two weeks", "queue": "a line"}
+    COLD = ("last time", "previously", "as you know", "as i said", "remember when")
+    for x in L:
+        hit = [f"{w} (say {PLAIN[w]})" for w in norm(x["say"]) if w in PLAIN and w not in allow]
+        if hit: F.append(f"T6 {x['id']}: regional or jargon word {hit}; a stranger hears it once")
+        if x["job"] != order[-1]:
+            cold = [p for p in COLD if phrase_in(p, x["say"]) and p not in allow]
+            if cold: F.append(f"T7 {x['id']} says {cold}: it tells a new viewer they missed the earlier part")
+    # K3 every clock time shown or said is on the part's story clock (the user, 2026-11-16: "message comes at what time and what
+    # time does he get up, all should be documented and thought out"). "clock": ["8:09", ...]
+    times = sorted({(x["id"], t) for x in L for t in re.findall(r"\b\d{1,2}:\d\d\b", " ".join([x["say"], x["picture"]] + x["screen"]))})
+    clock = d.get("clock")
+    if times and clock is None: need(f"K3 clock times {sorted({t for _, t in times})} on screen, but no 'clock' declared")
+    elif clock is not None:
+        off = [f"{i} {t}" for i, t in times if t not in clock]
+        if off: F.append(f"K3 times not on the story clock: {off}")
+    # A5 the timing file speaks this part's words (ERR-0023, ERR-0024: a parser read another part's rows by line id)
+    if d.get("timing"):
+        try:
+            bad_t = timing_mismatch(os.path.join(ROOT, d["timing"]), L)
+            if bad_t: F.append(f"A5 {d['timing']} differs from the script's words on {bad_t[:6]}: built from another part's text?")
+        except (OSError, ValueError, KeyError) as e:
+            F.append(f"A5 timing file unreadable ({e})")
     # ---- A: audio, from the delivery file once the script is voiced
     dl = d.get("delivery")
     if not dl: W.append("A  not voiced yet: no delivery file, audio checks skipped")

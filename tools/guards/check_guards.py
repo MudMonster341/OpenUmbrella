@@ -13,6 +13,8 @@ G4  The auto-reviewer's self-tests pass (tools/autoreview/selftest.py): its chec
     sibling: the first reviewer measured today's stems instead of the video, and peaks instead of loudness).
 G10 Every Claude Code hook names its script through $CLAUDE_PROJECT_DIR, never a relative path (ERR-0021).
 G11 No HyperFrames composition folder holds rendered video: renders go outside it, or they are bundled into every render (ERR-0022).
+G12 Every generated timing file in the lab (timing*.js) speaks exactly one part's script, word for word, and a script that names
+    its timing file matches it (ERR-0023, ERR-0024: parsers that read STORY.md rows by line id mixed Part 2's words into Part 1).
 
 Runs before every publish (tools/publish/publish_code.py) and can run any time.
 """
@@ -97,7 +99,7 @@ def g5():
     """every ERRORS.md entry from ERR-0014 on names the check that now catches it (the user, 2026-11-16: 'whenever mistakes are
     made, make pre-check deterministic checks and pipelines to make sure the same mistake is not repeated')"""
     text = (ROOT / "ERRORS.md").read_text(encoding="utf-8")
-    review = (ROOT / "tools" / "autoreview" / "autoreview.py").read_text(encoding="utf-8") + Path(__file__).read_text(encoding="utf-8")
+    review = "".join((ROOT / f).read_text(encoding="utf-8") for f in ("tools/autoreview/autoreview.py", "tools/scriptcheck/scriptcheck.py")) + Path(__file__).read_text(encoding="utf-8")
     missing, pending, broken = [], [], []
     for m in re.finditer(r"(?ms)^## ERR-(\d{4})(.*?)(?=^## ERR-|\Z)", text):
         num, body = int(m.group(1)), m.group(2)
@@ -107,7 +109,7 @@ def g5():
         line = g.group(1)
         if "pending" in line.lower(): pending.append(f"ERR-{num:04d}"); continue
         for cid in re.findall(r"\b([VASCHDG]\d{1,2})\b", line):           # every named check ID must exist in a checker
-            if not re.search(rf"[\"']{cid}[\"']", review): broken.append(f"ERR-{num:04d} names {cid}, which no checker defines")
+            if not re.search(rf"[\"']{cid}\b", review): broken.append(f"ERR-{num:04d} names {cid}, which no checker defines")
         for path in re.findall(r"(tools/[\w/.-]+\.(?:py|mjs)|story_reel_foundation/[\w/.-]+\.mjs)", line):
             if not (ROOT / path).exists(): broken.append(f"ERR-{num:04d} names {path}, which does not exist")
     if missing or broken: res("G5", False, "; ".join(missing + broken))
@@ -158,6 +160,7 @@ def g9():
     old 48.05 s master (the picture ran 48.72 s; the pre-hit silence landed on sound). Run before every mux"""
     import json, wave
     pairs = [(tj, tj.parents[1] / "sound" / "out" / "master.wav") for tj in ROOT.glob("films/*/voice/scene01_timing.json")]   # any film: no film is named in code (the publish filter)
+    pairs += [(tj, tj.parents[1] / tj.parent.name.replace("voice", "sound", 1) / "out" / "master.wav") for tj in ROOT.glob("films/*/voice_*/timing.json")]   # later parts: voice_p2 <-> sound_p2 (ROADMAP D19)
     pairs = [(tj, mw) for tj, mw in pairs if mw.exists()]
     if not pairs: res("G9", True, "no timeline or master on this machine (nothing to compare)"); return
     msgs, ok = [], True
@@ -209,8 +212,25 @@ def g11():
     else: res("G11", True, "no rendered video inside any composition folder")
 
 
+def g12():
+    """ERR-0023/0024 (2026-11-18): every lab timing file was built from exactly one part's script (all its lines' words equal), and
+    every script that declares a "timing" file matches it. The comparison is scriptcheck.timing_mismatch, proven in its selftest"""
+    sys.path.insert(0, str(ROOT / "tools" / "scriptcheck"))
+    import scriptcheck as sc
+    import json as _j
+    scripts = {p: _j.loads(p.read_text(encoding="utf-8")) for p in sorted((ROOT / "films").glob("*/*_script.json"))}
+    bad, ok = [], []
+    for t in sorted((ROOT / "story_reel_foundation" / "lab").glob("timing*.js")):
+        hits = [p for p, d in scripts.items() if not sc.timing_mismatch(str(t), d["lines"])]
+        if len(hits) != 1: bad.append(f"{t.name} matches {len(hits)} scripts")
+        else: ok.append(f"{t.name} = {hits[0].name}")
+    for p, d in scripts.items():
+        if d.get("timing") and sc.timing_mismatch(str(ROOT / d["timing"]), d["lines"]): bad.append(f"{p.name} != its timing {d['timing']}")
+    res("G12", not bad, "; ".join(bad) if bad else "every timing file speaks one script's words: " + ", ".join(ok))
+
+
 def main():
-    g1(); g2(); g3(); g4(); g5(); g6(); g7(); g8(); g9(); g10(); g11()
+    g1(); g2(); g3(); g4(); g5(); g6(); g7(); g8(); g9(); g10(); g11(); g12()
     for gid, st, msg in results:
         print(f"{st}  {gid}  {msg}")
     fails = [r for r in results if r[1] == "FAIL"]

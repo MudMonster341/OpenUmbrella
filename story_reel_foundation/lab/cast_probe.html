@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- cast_probe.html — opened by check_cast.mjs only (never rendered). Builds each Part 2 cast member exactly as part2.html does (makeActor
+     from cast_p2.js), poses it standing (Idle_Loop at t = 1 s) and writes its measured height to window.__cast. ?plant=sib:1.0 overrides
+     one look.height: the planted-fault test. -->
+<html><head><meta charset="UTF-8" />
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.181.2/examples/jsm/" } }</script>
+</head><body><script type="module">
+  import { loadRig, makeActor } from "./lib/actor.js";
+  import { CAST_P2 } from "./cast_p2.js";
+  try {
+    const plant = new URLSearchParams(location.search).get("plant");
+    const cast = JSON.parse(JSON.stringify(CAST_P2));
+    if (plant) { const [k, v] = plant.split(":"); cast[k].look.height = +v; }
+    const rig = await loadRig("assets/ual/UAL1_Standard.glb"), out = {};
+    for (const [k, c] of Object.entries(cast)) {
+      const a = makeActor(rig, c.look);
+      a.perform(1.0, [{ t: 0, clip: "Idle_Loop", fade: 0.05 }]);
+      out[k] = { role: c.role, height_m: +a.standing().toFixed(4), look_height: c.look.height ?? 1 };
+    }
+    window.__cast = out;
+  } catch (e) { window.__cast = { error: String(e && e.stack || e) }; }
+</script></body></html>

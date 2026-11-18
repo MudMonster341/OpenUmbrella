@@ -7,7 +7,7 @@ It copies the first script under films/ that declares loops and passes cleanly, 
 rule id appears. Standard library only; writes only to a temp folder. The script's text stays local (rule 10): this file
 names no story words; it edits the copy by structure (line index, key), never by quoting a line.
 """
-import copy, json, os, sys, tempfile
+import copy, json, os, re, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scriptcheck as sc  # noqa: E402
@@ -46,7 +46,7 @@ def main():
     if not BASE: print("selftest: no clean script with loops under films/ (local-only story files); skipped"); return 0
     clean = json.load(open(BASE, encoding="utf-8"))
     F, _ = run(clean)
-    new = [m for m in F if m[:2] in ("H1", "H2", "H3", "H4", "P1", "P2", "P3")]
+    new = [m for m in F if m[:2] in ("H1", "H2", "H3", "H4", "P1", "P2", "P3", "N1", "N2", "R4", "L5", "L6", "S6", "T6", "T7", "K3", "A5")]
     ran.append("clean"); print(f"{'PASS' if not new else 'FAIL'}  clean script: {len(new)} new-rule failures {new[:2]}")
     if new: fails.append("clean")
 
@@ -116,6 +116,58 @@ def main():
     ran.append("A4"); ok = r is not None and abs(r - 3.0) < 1e-9 and sc.speed_ok(3.0, 3.1) and not sc.speed_ok(3.6, 3.1)
     print(f"{'PASS' if ok else 'FAIL'}  A4 voice_rate reads 15 words / 5 s = {r}; 3.0 vs 3.1 ok, 3.6 vs 3.1 refused")
     if not ok: fails.append("A4")
+
+    # 2026-11-18, docs/SCRIPT_PLAYBOOK.md: the playbook's measurable rules (N, R4, L5/L6, S6, T6/T7, K3, A5)
+    dil = [x["id"] for x in clean["lines"] if x["job"] == clean["jobs_order"][-2]]
+    card = re.findall(r"[A-Za-z]{3,}", " ".join(clean["lines"][-1]["screen"] + clean["lines"][-1]["caption"]))
+    def say2(i): return " ".join(next(x for x in clean["lines"] if x["id"] == i)["say"].split()[:2])
+    if len(dil) >= 2 and len(card) >= 2:
+        good = {"answers": [{"word": card[-2], "line": dil[0], "says": say2(dil[0]), "cost": "x"},
+                            {"word": card[-1], "line": dil[1], "says": say2(dil[1]), "cost": "y"}], "shape": "zzqq shape"}
+        d = copy.deepcopy(clean); d["ending"] = good; F2, _ = run(d); nf = [m for m in F2 if m[:2] in ("N1", "N2")]
+        ran.append("N clean"); print(f"{'PASS' if not nf else 'FAIL'}  N1/N2 a well-formed ending passes: {nf[:1]}")
+        if nf: fails.append("N clean")
+        d = copy.deepcopy(clean); d["ending"] = copy.deepcopy(good); d["ending"]["answers"][1]["line"] = dil[0]
+        expect("N1 both answers on one line", d, "N1")
+        d = copy.deepcopy(clean); d["ending"] = copy.deepcopy(good); d["ending"]["answers"][0]["says"] = "zzqq qqzz"
+        expect("N1 an answer its line never says", d, "N1")
+        d = copy.deepcopy(clean); d["ending"] = copy.deepcopy(good); d["ending"]["answers"][1]["word"] = "ZZQQ"
+        expect("N2 an end card that names one answer", d, "N2")
+    d = copy.deepcopy(clean); d["schema"] = 2; d.pop("ending", None)
+    expect("N1 schema 2 with no ending declared (FAIL, not warn)", d, "N1")
+    d = copy.deepcopy(clean); d["hook"]["device"] = "zzqq clock"
+    expect("R4 the hook device of an earlier part", d, "R4", earlier={"events": [], "lines": [], "hook": {"device": "ZZQQ clock"}})
+    d["allow_repeat"] = {"hook device": "the user's call"}
+    F2, W2 = run(d, {"events": [], "lines": [], "hook": {"device": "zzqq clock"}})
+    ok = any(m.startswith("R4") and "(allowed:" in m for m in W2) and not any(m.startswith("R4") for m in F2)
+    ran.append("R4 allowed"); print(f"{'PASS' if ok else 'FAIL'}  R4 an allowed repeat warns and does not fail")
+    if not ok: fails.append("R4 allowed")
+    if clean.get("ledger"):
+        d = copy.deepcopy(clean)
+        expect("L5 a ledger that does not start where the last part ended", d, "L5",
+               earlier={"events": [], "lines": [], "ledger": {"start": clean["ledger"]["start"] + 7, "steps": [], "prices": [1]}})
+        expect("L6 a price below the last part's highest", d, "L6",
+               earlier={"events": [], "lines": [], "ledger": {"start": clean["ledger"]["start"], "steps": [], "prices": [10 ** 9]}})
+    tdir = tempfile.mkdtemp(prefix="scriptcheck_timing_")
+    def tfile(name, lines, end=60.0):
+        caps = [{"t": 0.0, "dur": 0.1, "line": x["id"], "word": w} for x in lines for w in x["say"].split()]
+        p = os.path.join(tdir, name); open(p, "w", encoding="utf-8").write("export const TIMING = " + json.dumps({"end": end, "captions": caps}) + ";\n"); return p
+    slow = tfile("slow.js", [{"id": "L01", "say": "one two three"}], end=30.0)
+    expect("S6 a pace far from the last part's measured one", copy.deepcopy(clean), "S6",
+           earlier={"events": [], "lines": [{"id": "L01", "say": "one two three"}], "timing": slow})
+    d = copy.deepcopy(clean); d["lines"][2]["say"] = d["lines"][2]["say"].rstrip(".") + " by the till."
+    expect("T6 a regional word a stranger may not follow", d, "T6")
+    d = copy.deepcopy(clean); d["lines"][2]["say"] = "Last time, " + d["lines"][2]["say"]
+    expect("T7 a line that tells a cold viewer they missed the last part", d, "T7")
+    d = copy.deepcopy(clean); d["clock"] = ["1:00"]; d["lines"][3]["screen"] = d["lines"][3]["screen"] + ["7:45"]
+    expect("K3 a clock time that is not on the story clock", d, "K3")
+    same = tfile("same.js", clean["lines"]); swapped = copy.deepcopy(clean["lines"]); swapped[0]["say"], swapped[1]["say"] = swapped[1]["say"], swapped[0]["say"]
+    other = tfile("other.js", swapped)
+    ok = sc.timing_mismatch(same, clean["lines"]) == [] and sc.timing_mismatch(other, clean["lines"])[:2] == [clean["lines"][0]["id"], clean["lines"][1]["id"]]
+    ran.append("A5 match"); print(f"{'PASS' if ok else 'FAIL'}  A5 timing_mismatch: its own words match, two swapped lines are named")
+    if not ok: fails.append("A5 match")
+    d = copy.deepcopy(clean); d["timing"] = other
+    expect("A5 a timing file built from other words (ERR-0023/0024)", d, "A5")
 
     print(f"SELFTEST {'PASS' if not fails else 'FAIL'}: {len(ran)} tests" + (f", failed: {', '.join(fails)}" if fails else ""))
     return 1 if fails else 0
