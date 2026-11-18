@@ -20,7 +20,7 @@ const tube = (g, a, b, r, mat, seg = 10) => { const A = new THREE.Vector3(...a),
 const noAO = (o) => { o.userData.noAO = true; o.userData.noShadow = true; return o; };
 
 /* a building: facade on its four sides (each face its own repeat), a parapet, and optionally rooftop things */
-function building(g, { x, z, w, d, top, bottom = -40, seed: s, lit = 0.35, wall = "#1f2538", tint = 0xffffff, fog = true, glow = 0.9, roofStuff = false }) {
+export function building(g, { x, z, w, d, top, bottom = -40, seed: s, lit = 0.35, wall = "#1f2538", tint = 0xffffff, fog = true, glow = 0.9, roofStuff = false }) {
   const h = top - bottom, floors = Math.max(2, Math.round(h / 3.2)), bays = Math.max(2, Math.round(w / 3)), lq = Math.round(lit * 10) / 10;
   const fk = [s % 6, wall, tint, fog, glow, lq].join("|");
   if (!FAC.has(fk)) { const f = facade(s % 6 + 1, { lit: lq, wall }); FAC.set(fk, new THREE.MeshStandardMaterial({ color: tint, map: f.map, emissiveMap: f.emissiveMap, emissive: 0xffffff, emissiveIntensity: glow, roughness: 0.9, fog })); }
@@ -37,7 +37,7 @@ function building(g, { x, z, w, d, top, bottom = -40, seed: s, lit = 0.35, wall 
 }
 
 /* merge every static mesh under root into one mesh per material (and per shadow/AO flags); subtrees marked keep stay live */
-function bake(root) {
+export function bake(root) {
   root.updateMatrixWorld(true); const inv = root.matrixWorld.clone().invert(), groups = new Map(), drop = [];
   const walk = (o) => { if (o.userData.keep) return; for (const c of [...o.children]) walk(c);
     if (o === root || !o.isMesh || o.isInstancedMesh) return;
@@ -102,6 +102,7 @@ export function buildRoof(g) {
     if (px === 0) { rbox(g, 0.055, PIV_Y, 0.055, steel, px, PIV_Y / 2, -3.0, { r: 0.003 }); into(bend, rbox(g, 0.055, 1.08 - PIV_Y, 0.055, steel, px, (1.08 + PIV_Y) / 2, -3.0, { r: 0.003 })); }
     else into(P, rbox(g, 0.055, 1.08, 0.055, steel, px, 0.54, -3.0, { r: 0.008 }));
     into(P, rbox(g, 0.17, 0.014, 0.17, surf("paint", { rep: [1, 1], metal: 0.5, tint: 0x8a9098 }), px, 0.007, -3.0, { r: 0.004 }));
+    if (px === -1.2) { const f = add(g, new THREE.PlaneGeometry(0.16, 0.16), M(0x6e675e, 0.97, { side: THREE.DoubleSide }), px, -0.0008, -3.0); f.rotation.x = Math.PI / 2; into(brk, f); }   /* felt torn up with the plate (it rendered pure black: critic) */
     for (const [bx, bz] of [[-0.055, -0.055], [0.055, -0.055], [-0.055, 0.055], [0.055, 0.055]]) {
       const loose = px === -1.2 && bx > 0 && bz > 0, x = px + bx, z = -3.0 + bz;
       into(P, add(g, washerGeo, washM, x, PLATE, z));
@@ -124,7 +125,7 @@ export function buildRoof(g) {
   { const chipM = [M(0x2a2826, 0.95), M(0x8a8680, 0.9)], cg = new THREE.Group(); cg.userData.keep = true; g.add(cg); dyn.chips = [];
     for (let i = 0; i < 14; i++) { const s = 0.012 + 0.02 * rnd(), m = add(cg, new THREE.BoxGeometry(s, s * 0.5, s * 0.8), chipM[i % 2], 0, -50, 0);
       dyn.chips.push({ m, p: [-1.2 + (rnd() - 0.5) * 0.16, 0.02, -3.0 + (rnd() - 0.5) * 0.16], v: [(rnd() - 0.5) * 1.6, 1.0 + 1.6 * rnd(), (rnd() - 0.65) * 1.8], w: [rnd() * 20, rnd() * 20] }); }
-    const dm = new THREE.SpriteMaterial({ map: soft(), color: 0x9a948a, transparent: true, opacity: 0, depthWrite: false });
+    const dm = new THREE.SpriteMaterial({ map: soft(), color: 0x4e4a44, transparent: true, opacity: 0, depthWrite: false });
     dyn.dust = []; for (let i = 0; i < 6; i++) { const s = new THREE.Sprite(dm.clone()); g.add(s); noAO(s); s.userData.keep = true; s.visible = false; dyn.dust.push({ s, a: rnd() * Math.PI * 2, r: 0.5 + rnd() }); } }
   /* a rust bloom on the post with the loose bolt: the eye goes there in the wide shot too */
   { const rust = add(g, new THREE.PlaneGeometry(0.044, 0.07), new THREE.MeshStandardMaterial({ color: 0x4a2a1c, roughness: 0.95, alphaMap: soft(), transparent: true, opacity: 0.5, depthWrite: false }), -1.2, 0.045, -2.971); rust.userData.noAO = true; into(brk, rust); }   /* inside the 55 mm face, soft-edged (it was 70 mm, solid, and read as a board in the insert; then a 16 cm oval read as a sticker) */
@@ -292,7 +293,7 @@ export function buildRoof(g) {
         else { const tt = t - TA; tear = 1; phi0 = 21 * D2R + 5 * D2R * Math.exp(-7 * tt) * Math.cos(28 * tt);
           if (tt < TR) phi = PA + W0 * tt + 0.5 * AC * tt * tt;
           else { const tr = tt - TR, w1 = 0.55 * (W0 + AC * TR); phi = PA + W0 * TR + 0.5 * AC * TR * TR + w1 * tr; sy = 0.9 * tr; sz = 0.5 * tr;
-            pos = [-1.2 + 0.25 * tr, Math.max(-29, PY + 0.4 * tr - 4.9 * tr * tr), PZ - 1.7 * tr]; } } }
+            pos = [-1.2 + 0.25 * tr, Math.max(-29, PY + 1.1 * tr - 4.9 * tr * tr), PZ - 2.4 * tr];   /* 0.4 / 1.7 sank the plate into the coping (critic) */ } } }
       dyn.brk.position.set(...pos); dyn.brk.rotation.set(-phi, sy, sz); dyn.bend.rotation.x = -phi0;
       /* the bay that bends: from post 1.2 (fixed) to the bent post's top, at each rail height */
       const c = Math.cos(phi0), s = Math.sin(phi0), lz = -3.0 - PZ, X = new THREE.Vector3(1, 0, 0);
@@ -304,7 +305,7 @@ export function buildRoof(g) {
         const [px, py, pz] = ch.p, [vx, vy, vz] = ch.v, x = px + vx * tc, z = pz + vz * tc, over = z < -3.36, y = py + vy * tc - 4.9 * tc * tc;
         ch.m.position.set(x, over ? Math.max(-29, y) : Math.max(0.006, y), z); ch.m.rotation.set(ch.w[0] * Math.min(tc, 0.6), ch.w[1] * Math.min(tc, 0.6), 0); }
       for (const d of dyn.dust) { const on = tc >= 0 && tc < 1.4; d.s.visible = on; if (!on) continue; const u = tc / 1.4;
-        d.s.position.set(-1.2 + Math.cos(d.a) * 0.3 * u * d.r, 0.08 + 0.35 * u, -3.0 + Math.sin(d.a) * 0.2 * u * d.r - 0.1 * u); d.s.scale.setScalar(0.12 + 0.6 * u); d.s.material.opacity = 0.35 * (1 - u) ** 1.5 * Math.min(1, tc / 0.08); }
+        d.s.position.set(-1.2 + Math.cos(d.a) * 0.3 * u * d.r, 0.08 + 0.35 * u, -3.0 + Math.sin(d.a) * 0.2 * u * d.r - 0.1 * u); d.s.scale.setScalar(0.08 + 0.32 * u); d.s.material.opacity = 0.22 * (1 - u) ** 1.5 * Math.min(1, tc / 0.08); }
       void tear; }
     /* string lights: the wind sways each strand; bulbs breathe out of phase */
     const mtx = new THREE.Matrix4(), col = new THREE.Color();

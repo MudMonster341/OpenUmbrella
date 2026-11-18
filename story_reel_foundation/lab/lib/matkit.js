@@ -84,10 +84,31 @@ const PAINT = {
     if (grout) return [0.55, 0.53, 0.5, 0.2, 0.9];
     const g = 0.82 + 0.1 * t; return [g, g * 0.98, g * 0.94, 0.8, 0.18 + 0.1 * fbm(u, v, 8, 2, 5)];
   },
+  /* wet lawn: blades as fine streaks along v, clumps, dry patches and darker wet hollows (M2, the cemetery) */
+  grass: (u, v) => {
+    const n = fbm(u, v, 8, 5, 51), clump = fbm(u, v, 3, 3, 53), dry = sm(0.58, 0.74, fbm(u, v, 2, 3, 57)), wet = sm(0.62, 0.7, fbm(u, v, 2, 4, 59));
+    const bl = hash(Math.floor(u * 512), Math.floor(v * 128), 61), b = (0.62 + 0.55 * bl) * (0.8 + 0.4 * clump);
+    const c = [mix(0.13, 0.27, dry) * b, mix(0.27, 0.26, dry) * b, mix(0.08, 0.11, dry) * b].map((x) => x * (1 - 0.3 * wet));
+    return [...c, 0.35 + 0.45 * bl * n, mix(0.82 - 0.2 * n, 0.3, wet)];
+  },
+  /* wet asphalt: dark aggregate with pale stones, tyre-polished bands, puddles that mirror (M2, the street) */
+  asphalt: (u, v) => {
+    const n = fbm(u, v, 8, 5, 71), st = hash(Math.floor(u * 400), Math.floor(v * 400), 73), pale = st > 0.93 ? 0.09 * (st - 0.93) / 0.07 : 0;
+    const pud = sm(0.62, 0.68, fbm(u, v, 2, 4, 77)), crack = sm(0.015, 0.0, Math.abs(fbm(u, v, 3, 4, 79) - 0.5)) * 0.6;
+    const g = (0.1 + 0.05 * n + pale) * (1 - 0.35 * crack) * (1 - 0.3 * pud);
+    return [g, g * 1.0, g * 1.04, 0.5 + 0.3 * (n - 0.5) + 0.6 * pale - 0.4 * crack - 0.3 * pud, mix(0.78 - 0.15 * n, 0.08, pud)];
+  },
+  /* churned site mud: brown, tyre ruts, stones, standing water (M2, the building site) */
+  mud: (u, v) => {
+    const n = fbm(u, v, 6, 5, 81), rut = sm(0.08, 0.0, Math.abs(((v * 3 + 0.15 * fbm(u, v, 2, 3, 83)) % 1) - 0.5)) * 0.8, pud = sm(0.6, 0.67, fbm(u, v, 2, 4, 87));
+    const st = hash(Math.floor(u * 260), Math.floor(v * 260), 89), stone = st > 0.95 ? 1 : 0;
+    const c = [0.3, 0.23, 0.16].map((x, i) => (x * (0.7 + 0.5 * n) * (1 - 0.3 * rut) + stone * [0.15, 0.14, 0.13][i]) * (1 - 0.45 * pud));
+    return [...c, 0.5 + 0.35 * (n - 0.5) - 0.3 * rut + 0.3 * stone - 0.35 * pud, mix(0.92, 0.1, pud)];
+  },
 };
 
 /* a standard material from a surface: `tint` multiplies the colour map, `rep` is [u, v] repeats; bumpScale per surface */
-const BUMP = { tar: 2.2, brick: 3.0, concrete: 1.6, paint: 0.8, wood: 2.0, tile: 1.2 };
+const BUMP = { tar: 2.2, brick: 3.0, concrete: 1.6, paint: 0.8, wood: 2.0, tile: 1.2, grass: 2.4, asphalt: 1.8, mud: 2.6 };
 export function surf(kind, { tint = 0xffffff, rep = [1, 1], size = 256, metal = 0, rough = 1, bump = 1, emissive, emissiveMap, emissiveIntensity } = {}) {
   const s = surface(kind + size, size, PAINT[kind]);
   const clone = (t) => { const c = t.clone(); c.repeat.set(rep[0], rep[1]); c.needsUpdate = true; return c; };

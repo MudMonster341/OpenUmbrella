@@ -337,7 +337,7 @@ export function applyChoice(o, T, C) {
 export function applyEndCard(o, T, E) {
   const on = E && T >= E.t0 && T < E.t1; o.en.style.opacity = on ? 1 : 0; if (!on) return;
   const dt = T - E.t0;
-  bgStyle(o.enBg, T, "rgba(16,16,22,0.5)", "rgba(255,216,74,0.18)", "rgba(255,255,255,0.07)");
+  bgStyle(o.enBg, T, `rgba(16,16,22,${E.dim ?? 0.5})`, "rgba(255,216,74,0.18)", "rgba(255,255,255,0.07)");
   o.enRays.style.backgroundImage = "conic-gradient(from " + (dt * 14) + "deg at 50% 46%, rgba(255,216,74,0.16) 0 10deg, rgba(0,0,0,0) 10deg 30deg)"; o.enRays.style.backgroundSize = "auto"; o.enRays.style.backgroundPosition = "0 0";
   const k = back(dt / 0.34), slam = dt < 0.34 ? 1 : 1 + 0.03 * Math.sin((dt - 0.34) * 2.4);
   o.enCard.style.transform = `scale(${(2.4 - 1.4 * k) * slam}) rotate(${(1 - k) * -9 + Math.sin(dt * 1.4) * 1.2}deg)`; o.enCard.style.opacity = clamp01(dt / 0.06);
