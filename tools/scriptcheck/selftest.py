@@ -26,15 +26,16 @@ BASE = _base()
 fails, ran = [], []
 
 
-def run(d):
-    p = os.path.join(tempfile.mkdtemp(prefix="scriptcheck_selftest_"), "x_script.json")
+def run(d, earlier=None):
+    tmp = tempfile.mkdtemp(prefix="scriptcheck_selftest_"); p = os.path.join(tmp, "x_script.json")
+    if earlier is not None: json.dump(earlier, open(os.path.join(tmp, "a_script.json"), "w", encoding="utf-8"))
     json.dump(d, open(p, "w", encoding="utf-8"))
     _, F, W, _ = sc.check(p)
     return F, W
 
 
-def expect(name, d, rule, where="F"):
-    F, W = run(d); hit = [m for m in (F if where == "F" else W) if m.startswith(rule)]
+def expect(name, d, rule, where="F", earlier=None):
+    F, W = run(d, earlier); hit = [m for m in (F if where == "F" else W) if m.startswith(rule)]
     ran.append(name); ok = bool(hit)
     print(f"{'PASS' if ok else 'FAIL'}  {name}: {'caught: ' + hit[0][:110] if ok else 'NOT caught; got ' + str([m[:40] for m in F + W])}")
     if not ok: fails.append(name)
@@ -79,8 +80,38 @@ def main():
     expect("R1 a line showing an earlier part's scene", d, "R1")
     d = copy.deepcopy(clean); d.pop("no_repeat", None)
     expect("R1 no no_repeat list declared", d, "R1")
-    d = copy.deepcopy(clean); w = d["lines"][5]["picture"].split()[1]; d["events"] = [w]; d["lines"][-3]["picture"] += " " + w
+    d = copy.deepcopy(clean); w = d["lines"][5]["picture"].split()[1]; d["show_once"] = [w]; d["lines"][-3]["picture"] += " " + w
     expect("R2 one event shown on two lines", d, "R2")
+
+    # 2026-11-18 (the user's notes on v7.1 and v8): characters defined, a goal, not too complicated, length, no earlier events, speed
+    chars = [n for n, c in clean.get("characters", {}).items() if c.get("role") != "narrator"]
+    if chars:
+        n0 = chars[-1]
+        d = copy.deepcopy(clean); d["characters"][n0]["role"] = "zzqq cousin"
+        expect("C1 an introduction that never says who they are", d, "C1")
+        d = copy.deepcopy(clean); d["characters"][n0]["introduced"] = d["lines"][-2]["id"]
+        expect("C1 a character named long before being introduced", d, "C1")
+        d = copy.deepcopy(clean); d["limits"]["characters"] = 1
+        expect("K2 too many characters", d, "K2")
+    d = copy.deepcopy(clean); d["goal"]["line"] = d["lines"][-3]["id"]
+    expect("G1 the goal arrives late", d, "G1")
+    d = copy.deepcopy(clean); d["goal"]["target"] = 987654
+    expect("G1 the target is never on screen", d, "G1")
+    d = copy.deepcopy(clean); d["lines"][1]["screen"] = d["lines"][1]["screen"] + ["11 22 33 44 55"]
+    expect("K1 number soup in the first 15 s", d, "K1")
+    d = copy.deepcopy(clean); d["target_s"] = [5, 10]
+    expect("S5 outside the length target (now a FAIL)", d, "S5")
+    d = copy.deepcopy(clean); prev = {"events": ["zzqq tram"], "lines": []}
+    expect("R3 an earlier part's event missing from no_repeat", d, "R3", earlier=prev)
+    import wave as _w
+    tmpa = tempfile.mkdtemp(prefix="scriptcheck_voice_")
+    for i, secs in (("A1", 2.0), ("A2", 3.0)):
+        with _w.open(os.path.join(tmpa, i + ".wav"), "wb") as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(bytes(2 * int(16000 * secs)))
+    r = sc.voice_rate(tmpa, [{"id": "A1", "say": "one two three four five six seven"}, {"id": "A2", "say": "eight nine ten eleven twelve thirteen fourteen fifteen"}])
+    ran.append("A4"); ok = r is not None and abs(r - 3.0) < 1e-9 and sc.speed_ok(3.0, 3.1) and not sc.speed_ok(3.6, 3.1)
+    print(f"{'PASS' if ok else 'FAIL'}  A4 voice_rate reads 15 words / 5 s = {r}; 3.0 vs 3.1 ok, 3.6 vs 3.1 refused")
+    if not ok: fails.append("A4")
 
     print(f"SELFTEST {'PASS' if not fails else 'FAIL'}: {len(ran)} tests" + (f", failed: {', '.join(fails)}" if fails else ""))
     return 1 if fails else 0

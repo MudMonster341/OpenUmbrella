@@ -27,7 +27,7 @@ The format (all keys required unless marked optional):
  "delivery": "path/to/delivery.json" | null, "allow_pause": {"<line id>": seconds}   # optional
 }
 """
-import glob, json, os, re, sys
+import glob, json, os, re, sys, wave
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -58,6 +58,21 @@ def markers():
         return None
 
 
+def voice_rate(audio_dir, lines):
+    """spoken words / seconds of the line WAVs (<id>.wav); None when none exist. Standard library only."""
+    secs = n = 0
+    for x in lines:
+        f = os.path.join(audio_dir, x["id"] + ".wav")
+        if os.path.exists(f):
+            with wave.open(f) as w: secs += w.getnframes() / w.getframerate()
+            n += len(words(x["say"]))
+    return n / secs if secs else None
+
+
+def speed_ok(rate, ref, tol=0.08):
+    return abs(rate / ref - 1) <= tol
+
+
 def check(path):
     d = json.load(open(path, encoding="utf-8"))
     F, W = [], []
@@ -84,7 +99,7 @@ def check(path):
     missing = [j for j in order if j not in seen]
     if missing: F.append(f"S4 sections missing: {missing}")
     secs = total / d["pace_wps"]; lo, hi = d["target_s"]
-    if not lo <= secs <= hi: W.append(f"S5 ~{secs:.0f} s at {d['pace_wps']} words/s, outside the {lo}-{hi} s target")
+    if not lo <= secs <= hi: F.append(f"S5 ~{secs:.0f} s at {d['pace_wps']} words/s, outside the {lo}-{hi} s target")
     # ---- V: the virality hook checklist (as declared; the render gates measure the frames)
     h = d["hook"]; first = L[0]["say"]
     if not h.get("frame0_moving"): F.append("V1 frame 0 is not declared moving")
@@ -200,9 +215,54 @@ def check(path):
             blob = " ".join([x["say"], x["picture"], x.get("reuse", "")]).lower()
             hit = [p for p in nr if p.lower() in blob]
             if hit: F.append(f"R1 {x['id']} repeats an earlier part: {hit}")
-    for ev in d.get("events", []):
+    for ev in d.get("show_once", []):
         where = [x["id"] for x in L if ev.lower() in x["picture"].lower()]
         if len(where) > 1: F.append(f"R2 the event '{ev}' is shown in {where}: show it once")
+    # R3: every event an EARLIER part declares is on this part's no_repeat list (so nobody has to remember them)
+    sib = sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(path)), "*_script.json")))
+    me = os.path.abspath(path)
+    for q in (sib[:sib.index(me)] if me in sib else []):
+        ev = json.load(open(q, encoding="utf-8")).get("events")
+        if ev is None: W.append(f"R3 {os.path.basename(q)} declares no 'events'"); continue
+        miss = [e for e in ev if not any(e.lower() in n.lower() for n in (nr or []))]
+        if miss: F.append(f"R3 events of {os.path.basename(q)} missing from no_repeat: {miss}")
+    total_s = max(b for _, b in t_est.values())
+    # ---- C: characters defined (the user 2026-11-18: "the story is very vague, define who, characters etc properly")
+    ch = d.get("characters")
+    if ch is None: F.append("C1 no 'characters' declared ({name: {role, introduced}})")
+    else:
+        def said(n, x): return re.search(rf"\b{re.escape(n)}\b", x["say"] + " " + " ".join(x["screen"]))
+        for n in d.get("names", []):
+            if " " in n or n.isupper(): continue
+            if any(said(n, x) for x in L) and n not in ch: F.append(f"C1 '{n}' appears but is not in characters")
+        for n, c in ch.items():
+            if c.get("role") == "narrator": continue
+            iid = c.get("introduced")
+            if iid not in ids: F.append(f"C1 {n}: introduced line '{iid}' unknown"); continue
+            k = ids.index(iid); first = next((i for i, x in enumerate(L) if said(n, x)), None)
+            if first is not None and first < k - 1: F.append(f"C1 {n} is named at {ids[first]}, before being introduced at {iid}")
+            near = norm(" ".join(L[j]["say"] for j in range(k, min(k + 2, len(L)))))
+            noun = (norm(c.get("role", "")) or [""])[-1]
+            if n.lower() not in near or noun not in near:
+                F.append(f"C1 {n}: {iid} (or the next line) does not say the name and who they are (the role's noun '{noun}')")
+    # ---- G: a goal, early, tracked (the user 2026-11-18: "no goal we are going towards")
+    goal = d.get("goal")
+    if not goal or goal.get("line") not in t_est: F.append("G1 no 'goal' declared, or its line is unknown")
+    else:
+        tg = t_est[goal["line"]][0]
+        if tg > 0.30 * total_s: F.append(f"G1 the goal arrives at ~{tg:.0f} s, after the first 30% (~{0.3 * total_s:.0f} s)")
+        if goal.get("target"):
+            tgt = f"{goal['target']:,}"; k = ids.index(goal["line"])
+            shown = [x["id"] for x in L[k:] if tgt in " ".join(x["screen"])]
+            if len(shown) < 3: F.append(f"G1 the target {tgt} is on screen in {len(shown)} lines from {goal['line']} (>= 3, so it can be tracked)")
+    # ---- K: not too complicated (the user 2026-11-18: "too complicated unnecessarily"; critic: "number soup")
+    nums = set()
+    for x in L:
+        if t_est[x["id"]][0] < 15.0:
+            nums |= {"clock" if ":" in t else re.sub(r"[^0-9]", "", t) for t in " ".join(x["screen"]).split() if re.sub(r"[^0-9]", "", t)}
+    if len(nums) > lim.get("numbers_first15", 4): F.append(f"K1 {len(nums)} different numbers on screen in the first 15 s {sorted(nums)} > {lim.get('numbers_first15', 4)}")
+    nch = len([n for n, c in (ch or {}).items()])
+    if nch > lim.get("characters", 4): F.append(f"K2 {nch} characters > {lim.get('characters', 4)} for one part")
     # ---- L: ledger
     g = d.get("ledger")
     after, end = {}, None
@@ -253,6 +313,17 @@ def check(path):
                 if not c["pass"]: W.append(f"A3 {c['id']} {c['name']}: {c['value']}")
         except ImportError as e:
             W.append(f"A3 emotion check skipped ({e})")
+        # A4 (the user 2026-11-18: "speak in the same speed as last time"): voiced words per second of WAV, against the
+        # previous part's own WAVs measured the same way; within 8%
+        r = voice_rate(os.path.join(ROOT, os.path.dirname(dl), "audio"), L)
+        prev = [q for q in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(path)), "*_script.json"))) if q < os.path.abspath(path)]
+        ref = None
+        for q in prev[::-1]:
+            qd = json.load(open(q, encoding="utf-8"))
+            if qd.get("delivery"):
+                ref = voice_rate(os.path.join(ROOT, os.path.dirname(qd["delivery"]), "audio"), qd["lines"]); break
+        if r and ref and not speed_ok(r, ref): F.append(f"A4 voice speed {r:.2f} words/s vs the previous part's {ref:.2f} (> 8% apart)")
+        elif r and not ref: W.append(f"A4 voice speed {r:.2f} words/s (no earlier voiced part to compare)")
     # ---- M: the publish filter knows the story
     mk = markers()
     if mk is None: W.append("M  tools/publish/story_markers.txt not found")
