@@ -55,7 +55,7 @@ export function buildRoof(g) {
   const dyn = {};
 
   /* ======== the deck ======== */
-  const tar = surf("tar", { rep: [6, 4.5], size: 512 });
+  const tar = surf("tar", { rep: [6, 4.5], size: 1024 });   /* 1024 since D26 (round stones need the texels) */
   rbox(g, 12.4, 0.3, 8.6, tar, 0, -0.15, 0.95, { r: 0.04 });
   const coping = surf("concrete", { rep: [8, 0.3], tint: 0xb8b4ac });
   const brickS = surf("brick", { rep: [3, 0.6], tint: 0xc0a090 });
@@ -85,22 +85,49 @@ export function buildRoof(g) {
     add(h, new THREE.CylinderGeometry(0.0062, 0.0062, 0.0006, 16), mat, 0, HEX_H / 2 + 0.0019, 0);   /* the stub end of the thread */
     return h;
   }
+  /* The break (2026-11-18, the user on M1: "show the railing also break and fall behind"). Two live groups, both pivoting on the
+     coping's inner top edge (PIV), the edge a post levers over when it is pushed outward:
+       brk  - the loose post with its plate, washers and bolts, and the two bays of rail either side of it (x -2.4 .. 0). Its plate
+              tears up out of the deck, the rails snap off post -2.4 and post 0, and the section goes over the edge and falls.
+       bend - the upper part of the neighbouring post (x 0): dragged out by the rail, it kinks at the coping and stays bent.
+     The bay x 0 .. 1.2 (dyn.segs) re-aims every frame from post 1.2 to the bent post's top. Under the plate is the torn felt and the
+     four holes, hidden until the plate lifts. All of it is a pure function of T (update). */
+  const PIV_Y = 0.35, PIV_Z = -3.035;
+  const brk = new THREE.Group(); brk.position.set(-1.2, PIV_Y, PIV_Z); brk.userData.keep = true; g.add(brk);
+  const bend = new THREE.Group(); bend.position.set(0, PIV_Y, PIV_Z); bend.userData.keep = true; g.add(bend);
+  const into = (grp, m) => { if (grp) { m.position.sub(grp.position); grp.add(m); } return m; };   /* re-parent a mesh placed in g's coordinates */
+  dyn.brk = brk; dyn.bend = bend; dyn.piv = [PIV_Y, PIV_Z]; dyn.segs = [];
   for (const px of railX) {
-    rbox(g, 0.055, 1.08, 0.055, steel, px, 0.54, -3.0, { r: 0.008 });
-    rbox(g, 0.17, 0.014, 0.17, surf("paint", { rep: [1, 1], metal: 0.5, tint: 0x8a9098 }), px, 0.007, -3.0, { r: 0.004 });
+    const P = px === -1.2 ? brk : null;
+    if (px === 0) { rbox(g, 0.055, PIV_Y, 0.055, steel, px, PIV_Y / 2, -3.0, { r: 0.003 }); into(bend, rbox(g, 0.055, 1.08 - PIV_Y, 0.055, steel, px, (1.08 + PIV_Y) / 2, -3.0, { r: 0.003 })); }
+    else into(P, rbox(g, 0.055, 1.08, 0.055, steel, px, 0.54, -3.0, { r: 0.008 }));
+    into(P, rbox(g, 0.17, 0.014, 0.17, surf("paint", { rep: [1, 1], metal: 0.5, tint: 0x8a9098 }), px, 0.007, -3.0, { r: 0.004 }));
     for (const [bx, bz] of [[-0.055, -0.055], [0.055, -0.055], [-0.055, 0.055], [0.055, 0.055]]) {
       const loose = px === -1.2 && bx > 0 && bz > 0, x = px + bx, z = -3.0 + bz;
-      add(g, washerGeo, washM, x, PLATE, z);
-      if (!loose) { const b = hexBolt(g, px === -1.2 ? zinc : zincDull); b.position.set(x, SEAT, z); b.rotation.y = (x * 37.1 + z * 11.3) % 1.047; continue; }   /* the loose bolt's post gets the clean zinc too, for the comparison in the insert */
-      const b = hexBolt(g, zinc); b.position.set(x, SEAT + LIFT, z); b.userData.keep = true; dyn.bolt = b; dyn.boltSeat = SEAT; dyn.boltLift = LIFT;
-      add(g, threadGeo, threadM, x, PLATE + WASH_H, z).userData.keep = true;   /* bare thread shows under the raised head */
+      into(P, add(g, washerGeo, washM, x, PLATE, z));
+      if (!loose) { const b = hexBolt(g, px === -1.2 ? zinc : zincDull); b.position.set(x, SEAT, z); b.rotation.y = (x * 37.1 + z * 11.3) % 1.047; into(P, b); continue; }   /* the loose bolt's post gets the clean zinc too, for the comparison in the insert */
+      const b = hexBolt(g, zinc); b.position.set(x, SEAT + LIFT, z); into(brk, b); dyn.bolt = b; dyn.boltSeat = SEAT - PIV_Y; dyn.boltLift = LIFT;
+      into(brk, add(g, threadGeo, threadM, x, PLATE + WASH_H, z));   /* bare thread shows under the raised head */
       /* a ring of clean metal on the washer where the head used to sit (the rest of the plate is dull): the tell that it has moved */
-      const ring = add(g, new THREE.RingGeometry(0.0078, 0.0132, 28), M(0xeef2f6, 0.15, { metalness: 0.95 }), x, PLATE + WASH_H + 0.0002, z); ring.rotation.x = -Math.PI / 2; ring.userData.keep = true;
+      const ring = add(g, new THREE.RingGeometry(0.0078, 0.0132, 28), M(0xeef2f6, 0.15, { metalness: 0.95 }), x, PLATE + WASH_H + 0.0002, z); ring.rotation.x = -Math.PI / 2; into(brk, ring);
     }
   }
-  for (const y of [1.08, 0.56]) rbox(g, 9.75, 0.05, 0.05, steel, 0, y, -3.0, { r: 0.012 });
+  for (const y of [1.08, 0.56]) {
+    rbox(g, 2.475, 0.05, 0.05, steel, -3.6375, y, -3.0, { r: 0.012 }); rbox(g, 3.675, 0.05, 0.05, steel, 3.0375, y, -3.0, { r: 0.012 });   /* the bays that stay */
+    into(brk, rbox(g, 2.4, 0.05, 0.05, steel, -1.2, y, -3.0, { r: 0.012 }));                                                                 /* the two bays that go */
+    const seg = rbox(g, 1.2, 0.05, 0.05, steel, 0.6, y, -3.0, { r: 0.012 }); seg.userData.keep = true; dyn.segs.push({ m: seg, y });        /* the bay that bends */
+  }
+  /* the torn felt and the anchor holes, under the plate (covered while it is down) */
+  { add(g, new THREE.PlaneGeometry(0.15, 0.15), M(0x5e5a54, 0.97), -1.2, 0.0009, -3.0).rotation.x = -Math.PI / 2;
+    for (const [bx, bz] of [[-0.055, -0.055], [0.055, -0.055], [-0.055, 0.055], [0.055, 0.055]]) add(g, new THREE.CircleGeometry(0.009, 12), B(0x050505), -1.2 + bx, 0.0012, -3.0 + bz).rotation.x = -Math.PI / 2; }
+  /* chips of felt and concrete thrown up when the plate tears out, and a puff of dust (hidden until then) */
+  { const chipM = [M(0x2a2826, 0.95), M(0x8a8680, 0.9)], cg = new THREE.Group(); cg.userData.keep = true; g.add(cg); dyn.chips = [];
+    for (let i = 0; i < 14; i++) { const s = 0.012 + 0.02 * rnd(), m = add(cg, new THREE.BoxGeometry(s, s * 0.5, s * 0.8), chipM[i % 2], 0, -50, 0);
+      dyn.chips.push({ m, p: [-1.2 + (rnd() - 0.5) * 0.16, 0.02, -3.0 + (rnd() - 0.5) * 0.16], v: [(rnd() - 0.5) * 1.6, 1.0 + 1.6 * rnd(), (rnd() - 0.65) * 1.8], w: [rnd() * 20, rnd() * 20] }); }
+    const dm = new THREE.SpriteMaterial({ map: soft(), color: 0x9a948a, transparent: true, opacity: 0, depthWrite: false });
+    dyn.dust = []; for (let i = 0; i < 6; i++) { const s = new THREE.Sprite(dm.clone()); g.add(s); noAO(s); s.userData.keep = true; s.visible = false; dyn.dust.push({ s, a: rnd() * Math.PI * 2, r: 0.5 + rnd() }); } }
   /* a rust bloom on the post with the loose bolt: the eye goes there in the wide shot too */
-  { const rust = add(g, new THREE.PlaneGeometry(0.044, 0.07), new THREE.MeshStandardMaterial({ color: 0x4a2a1c, roughness: 0.95, alphaMap: soft(), transparent: true, opacity: 0.5, depthWrite: false }), -1.2, 0.045, -2.971); rust.userData.noAO = true; rust.userData.keep = true; }   /* inside the 55 mm face, soft-edged (it was 70 mm, solid, and read as a board in the insert; then a 16 cm oval read as a sticker) */
+  { const rust = add(g, new THREE.PlaneGeometry(0.044, 0.07), new THREE.MeshStandardMaterial({ color: 0x4a2a1c, roughness: 0.95, alphaMap: soft(), transparent: true, opacity: 0.5, depthWrite: false }), -1.2, 0.045, -2.971); rust.userData.noAO = true; into(brk, rust); }   /* inside the 55 mm face, soft-edged (it was 70 mm, solid, and read as a board in the insert; then a 16 cm oval read as a sticker) */
 
   /* ======== the stair bulkhead (behind and right): brick, a door ajar with warm light, a caged lamp, a vent with steam, a fan ======== */
   { const bx = 4.2, bz = 2.5;
@@ -252,6 +279,33 @@ export function buildRoof(g) {
       const k = 0.55 * step((T - tb + 0.05) / 0.12) + 0.45 * step((T - tb - 0.45) / 0.12), shiver = 0.0004 * Math.sin(T * 41) * Math.sin(T * 3.3);
       dyn.bolt.rotation.y = 0.35 + 0.025 * Math.sin(T * 2.1) - k * Math.PI / 3;
       dyn.bolt.position.y = dyn.boltSeat + dyn.boltLift + 0.0015 * k + shiver; }
+    /* the railing breaks (cue.drop, the word FALLS): the weight goes on, the loose post levers over the coping and its plate tears up
+       (0.24 s, the section and the neighbour post together); the rails snap, the neighbour post springs back and stays kinked; the
+       section keeps turning, slides off the edge and falls. On the other card (cue.save, he is pulled back) the railing is whole again,
+       and the loose post only shudders and stays leaning a little where he hung on it. Pure function of T. */
+    { const D2R = Math.PI / 180, [PY, PZ] = dyn.piv, td = (cue.drop ?? 1e9) - 0.06, ts = cue.save ?? 1e9, t = T - td;
+      const TA = 0.28, PA = 26 * D2R, W0 = 2 * PA / TA, AC = 6, TR = 0.2;   /* 0.24 / 0.16 read as a blink at 60 fps (stills, 2026-11-18) */
+      let phi = 0, phi0 = 0, pos = [-1.2, PY, PZ], sy = 0, sz = 0, tear = 0;
+      if (T >= ts) { const u = T - ts; phi = (1.4 + 1.6 * Math.exp(-3.5 * u) * Math.sin(u * 29)) * D2R; phi0 = 0.6 * phi; }
+      else if (t > 0) {
+        if (t < TA) { phi = PA * (t / TA) ** 2; phi0 = phi; tear = t / TA; }
+        else { const tt = t - TA; tear = 1; phi0 = 21 * D2R + 5 * D2R * Math.exp(-7 * tt) * Math.cos(28 * tt);
+          if (tt < TR) phi = PA + W0 * tt + 0.5 * AC * tt * tt;
+          else { const tr = tt - TR, w1 = 0.55 * (W0 + AC * TR); phi = PA + W0 * TR + 0.5 * AC * TR * TR + w1 * tr; sy = 0.9 * tr; sz = 0.5 * tr;
+            pos = [-1.2 + 0.25 * tr, Math.max(-29, PY + 0.4 * tr - 4.9 * tr * tr), PZ - 1.7 * tr]; } } }
+      dyn.brk.position.set(...pos); dyn.brk.rotation.set(-phi, sy, sz); dyn.bend.rotation.x = -phi0;
+      /* the bay that bends: from post 1.2 (fixed) to the bent post's top, at each rail height */
+      const c = Math.cos(phi0), s = Math.sin(phi0), lz = -3.0 - PZ, X = new THREE.Vector3(1, 0, 0);
+      for (const { m, y } of dyn.segs) { const ly = y - PY, A = new THREE.Vector3(1.2, y, -3.0), Bp = new THREE.Vector3(0, PY + ly * c + lz * s, PZ - ly * s + lz * c), d = Bp.clone().sub(A);
+        m.position.copy(A).addScaledVector(d, 0.5); m.scale.set(d.length() / 1.2, 1, 1); m.quaternion.setFromUnitVectors(X, d.clone().multiplyScalar(-1).normalize()); }
+      /* chips and dust from the tear: thrown at the moment the plate comes up */
+      const tc = T < ts ? t - 0.6 * TA : -1;
+      for (const ch of dyn.chips) { if (tc < 0) { ch.m.position.y = -50; continue; }
+        const [px, py, pz] = ch.p, [vx, vy, vz] = ch.v, x = px + vx * tc, z = pz + vz * tc, over = z < -3.36, y = py + vy * tc - 4.9 * tc * tc;
+        ch.m.position.set(x, over ? Math.max(-29, y) : Math.max(0.006, y), z); ch.m.rotation.set(ch.w[0] * Math.min(tc, 0.6), ch.w[1] * Math.min(tc, 0.6), 0); }
+      for (const d of dyn.dust) { const on = tc >= 0 && tc < 1.4; d.s.visible = on; if (!on) continue; const u = tc / 1.4;
+        d.s.position.set(-1.2 + Math.cos(d.a) * 0.3 * u * d.r, 0.08 + 0.35 * u, -3.0 + Math.sin(d.a) * 0.2 * u * d.r - 0.1 * u); d.s.scale.setScalar(0.12 + 0.6 * u); d.s.material.opacity = 0.35 * (1 - u) ** 1.5 * Math.min(1, tc / 0.08); }
+      void tear; }
     /* string lights: the wind sways each strand; bulbs breathe out of phase */
     const mtx = new THREE.Matrix4(), col = new THREE.Color();
     const wind = (t, s) => 0.6 * Math.sin(t * 0.83 + s) + 0.4 * Math.sin(t * 1.71 + 2 * s);

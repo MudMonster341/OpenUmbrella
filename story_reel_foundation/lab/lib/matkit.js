@@ -40,10 +40,16 @@ const hex = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) /
 const PAINT = {
   /* roofing felt with gravel, stains, and puddles left by the rain (low roughness: they catch the string lights) */
   tar: (u, v) => {
-    const n = fbm(u, v, 6, 5, 3), st = fbm(u, v, 2, 3, 9), gr = hash(Math.floor(u * 300), Math.floor(v * 300), 5), pud = sm(0.6, 0.66, fbm(u, v, 2, 4, 21));
-    const g = gr > 0.86 ? 0.16 * (gr - 0.86) / 0.14 : 0, base = 0.13 + 0.08 * n - 0.05 * st + g;
-    const c = [base * 0.95, base * 0.93, base * 1.0].map((x) => x * (1 - 0.35 * pud));
-    return [...c, 0.5 + 0.35 * (n - 0.5) + g * 2 - 0.3 * pud, mix(0.92 - 0.1 * n, 0.12, pud)];
+    /* D26 (2026-11-18): the gravel was one hash per square cell (u*300), so each stone was a square of 1-2 texels and the close inserts
+       showed a grid of blocks. Now each cell holds at most one ROUND stone, jittered inside it, with a domed bump and an anti-aliased rim. */
+    const n = fbm(u, v, 6, 5, 3), st = fbm(u, v, 2, 3, 9), pud = sm(0.6, 0.66, fbm(u, v, 2, 4, 21));
+    const N = 190, cx = Math.floor(u * N), cy = Math.floor(v * N), fx = u * N - cx, fy = v * N - cy, k = hash(cx, cy, 5);
+    let g = 0, dome = 0;
+    if (k > 0.5) { const jx = 0.32 + 0.36 * hash(cx, cy, 6), jy = 0.32 + 0.36 * hash(cx, cy, 7), r = 0.15 + 0.15 * hash(cx, cy, 8), d = Math.hypot(fx - jx, fy - jy) / r;
+      const cov = sat((1 - d) * 3); dome = cov * Math.sqrt(Math.max(0, 1 - d * d)); g = cov * (0.015 + 0.06 * hash(cx, cy, 9) * hash(cx, cy, 10)) * (0.8 + 0.4 * dome); }   /* dull, uneven stones: bright ones read as snow */
+    const base = 0.13 + 0.08 * n - 0.05 * st + g;
+    const c = [base * 0.95, base * 0.93, base * (1.0 - 0.15 * g)].map((x) => x * (1 - 0.35 * pud));
+    return [...c, 0.5 + 0.35 * (n - 0.5) + 0.35 * dome * (1 - pud) - 0.3 * pud, mix(0.92 - 0.1 * n - 0.15 * dome, 0.12, pud)];
   },
   /* brick, running bond: per-brick tint, chipped edges, recessed mortar */
   brick: (u, v) => {
