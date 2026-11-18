@@ -22,7 +22,7 @@ Then read the template: `market_research_and_intelligence/story/STORY_TEMPLATE.m
 | 2 | **Bible + episode plan** | STORY.md §3–4 | All episodes outlined before one is scripted |
 | 3 | **Script** | STORY.md §5–6, five hooks then one; **the script as data in `films/<slug>/<part>_script.json`** (one format for every part) | **`python tools/scriptcheck/scriptcheck.py <file>` must PASS** (text, structure, the virality hook checklist, the ledger, audio once voiced, the publish filter); then the **`script-critic` agent**, then **the user reads it** |
 | 4 | **Voice** | one WAV per line in `audio/` | Every line measured for duration |
-| 5 | **Timings** | `words.json` | `python tools/reelkit/align.py <audio_dir> --check` (offline; approved 2026-11-14) |
+| 5 | **Timings** | `words.json` | `tools/reelkit/.venv/Scripts/python.exe tools/reelkit/align.py <audio_dir> --check` (system python has no faster-whisper; found 2026-11-18) (offline; approved 2026-11-14) |
 | 6 | **Build** | `index.html` from the style document | `npx hyperframes snapshot` at every line |
 | 7 | **Frames** | snapshots | `node check_direction.mjs` + `check_bus.mjs` (bare, never piped), **`film-critic` agent**, then **the user looks** |
 | 8 | **Sound** | `sound/synth.py` + `music.py`, then `sound/master.py` | −14 LUFS, LRA ≤ 5, master **Linear**, measured |
@@ -52,7 +52,7 @@ Then read the template: `market_research_and_intelligence/story/STORY_TEMPLATE.m
   tell the user the wait up front and run long batches in the background.
 - **The voice model is non-commercial** (OmniVoice weights, CC-BY-NC).
 - **Do not use the user's cloned voice** unless they ask for it by name.
-- **Word timings exist, offline.** `speak` returns none, so run `python tools/reelkit/align.py <audio_dir> --check`
+- **Word timings exist, offline.** `speak` returns none, so run `tools/reelkit/.venv/Scripts/python.exe tools/reelkit/align.py <audio_dir> --check` (system python has no faster-whisper; found 2026-11-18)
   (faster-whisper, MIT, using the model VoiceStudio already placed on disk; approved 2026-11-14). It keeps the
   *script's* words and borrows the *measured* times, because Whisper normalises numerals. **Read what `--check` flags.**
   Do not fake word timing by dividing a line evenly and calling it synced. *(Corrected 2026-11-15: this section

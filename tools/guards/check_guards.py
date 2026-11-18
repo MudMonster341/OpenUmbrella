@@ -86,7 +86,11 @@ def g4():
     if not st.exists(): res("G4", False, "tools/autoreview/selftest.py is missing"); return
     r = subprocess.run([str(py if py.exists() else sys.executable), str(st)], cwd=ROOT, capture_output=True, text=True)
     last = (r.stdout.strip().splitlines() or ["(no output)"])[-1]
-    res("G4", r.returncode == 0, last if r.returncode == 0 else r.stdout.strip()[-600:] + r.stderr.strip()[-300:])
+    # and scriptcheck's (2026-11-18): each hook/pacing rule fires on a planted fault
+    s2 = subprocess.run([sys.executable, str(ROOT / "tools" / "scriptcheck" / "selftest.py")], cwd=ROOT, capture_output=True, text=True)
+    last2 = (s2.stdout.strip().splitlines() or ["(no output)"])[-1]
+    good = r.returncode == 0 and s2.returncode == 0
+    res("G4", good, f"autoreview {last}; scriptcheck {last2}" if good else (r.stdout.strip()[-400:] + r.stderr.strip()[-200:] + s2.stdout.strip()[-400:]))
 
 
 def g5():

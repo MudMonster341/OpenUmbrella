@@ -91,6 +91,11 @@ def check(path):
     if not h.get("recognisable", "").strip(): F.append("V2 nothing recognisable declared at frame 0")
     if h.get("biggest_share", 0) < 0.40: F.append(f"V3 biggest element {h.get('biggest_share', 0):.0%} < 40% of the frame")
     if h.get("event_s", 99) > 3.0: F.append(f"V4 the extraordinary event lands at {h.get('event_s')} s, after 3 s")
+    # V4b (2026-11-18, a posted reel's 30% skip rate): the event must be one the virality skill names, not a notification or a
+    # title. The skill's list: it explodes, burns, breaks, builds itself, collapses, or a number races and locks.
+    EVENTS = ("explod", "burn", "break", "shatter", "smash", "crash", "build", "collaps", "races", "rewind", "runs backward")
+    if not any(k in h.get("event", "").lower() for k in EVENTS):
+        F.append(f"V4b the first-3-s event '{h.get('event')}' is none of the skill's (explodes, burns, breaks, builds, collapses, a number races and locks)")
     toks = norm(first); cw = re.sub(r"[^a-z0-9']", "", h["claim_word"].lower())
     if cw not in toks: F.append(f"V5 claim word '{h['claim_word']}' is not in line 1")
     else:
@@ -116,6 +121,75 @@ def check(path):
     if not h.get("mute", "").strip() or not (L[0]["caption"] or L[0]["screen"]): F.append("V7 line 1 has nothing on screen for mute")
     if not str(h.get("about_viewer", "")).startswith(("yes", "n/a:")): F.append("V8 'about the viewer' neither yes nor a stated n/a")
     elif h["about_viewer"].startswith("n/a"): W.append("V8 " + h["about_viewer"])
+    # ---- H: hook craft, from the hook-structure study (2026-11-18, research/reels/ig-hooks-*/HOOK_LESSONS.md, one creator's
+    # framework, mapped to a story: who, what happens to/through them, the end state at stake, and a contrast of two states)
+    first25 = " ".join(norm(" ".join(x["say"] for x in L)) [:25])
+    el = h.get("elements")
+    if not el: F.append("H1 hook.elements not declared (who, act, end, contrast: phrases from the first 25 spoken words)")
+    else:
+        pos_el = {}
+        for k in ("who", "act", "end", "contrast"):
+            v = el.get(k)
+            if not v: F.append(f"H1 hook element '{k}' missing: the hook has no {dict(who='subject', act='action', end='end state', contrast='contrast')[k]}"); continue
+            parts = [p.strip() for p in v.split("/")] if k == "contrast" else [v]
+            if k == "contrast" and len(parts) != 2: F.append(f"H1 contrast '{v}' is not two states 'A / B'"); continue
+            for p in parts:
+                ph = " ".join(norm(p))
+                if not ph or (" " + ph + " ") not in (" " + first25 + " "): F.append(f"H1 hook element {k} '{p}' is not in the first 25 spoken words")
+                else: pos_el.setdefault(k, (" " + first25 + " ").index(" " + ph + " "))
+        if all(k in pos_el for k in ("who", "act", "end")) and not pos_el["who"] <= pos_el["act"] <= pos_el["end"]:
+            W.append("H2 hook elements not in the taught order who <= act <= end (a story may invert it; say why in the script)")
+    # H3 open loops: at every line from the first to the last, the viewer holds at least one unanswered question; the last one
+    # stays open past the end (the cliffhanger). Each loop: {"q", "open": line id, "close": line id or null}
+    loops = d.get("loops")
+    if not loops: F.append("H3 no open loops declared ('loops': [{q, open, close}])")
+    else:
+        ix = {i: n for n, i in enumerate(ids)}
+        bad_ids = [l2 for lp in loops for l2 in (lp["open"], lp.get("close")) if l2 and l2 not in ix]
+        if bad_ids: F.append(f"H3 loops name unknown lines {bad_ids}")
+        else:
+            span = [(ix[lp["open"]], ix[lp["close"]] if lp.get("close") else len(L)) for lp in loops]
+            gaps = [ids[n] for n in range(len(L)) if not any(a <= n < b for a, b in span)]
+            if gaps: F.append(f"H3 no question open during {gaps}: the viewer has nothing to wait for there")
+            if min(a for a, _ in span) != 0: F.append("H3 no loop opens on line 1")
+            if not any(lp.get("close") is None for lp in loops): F.append("H3 every loop closes: nothing left open for the next part")
+            t_line = []; tt = h["first_word_s"]
+            for x in L: t_line.append(tt); tt += len(words(x["say"])) / d["pace_wps"]
+            by8 = sum(1 for a, _ in span if t_line[a] <= 8.0)
+            if by8 < 2: W.append(f"H4 only {by8} question(s) open by ~8 s; a second hook (a new question) by then holds the swipe")
+    # ---- P: pacing budget (the user 2026-11-18: 'maybe pacing ... needs more work'; Part 1's 30% skip)
+    t_est = {}; tt = h["first_word_s"]
+    for x in L: t_est[x["id"]] = (tt, tt + len(words(x["say"])) / d["pace_wps"]); tt = t_est[x["id"]][1]
+    for job, cap in d.get("pace_budget", {}).items():
+        secs_job = sum(b - a for i, (a, b) in t_est.items() if next(y["job"] for y in L if y["id"] == i) == job)
+        if secs_job > cap: F.append(f"P1 section '{job}' runs ~{secs_job:.1f} s > its {cap} s budget")
+    if not d.get("pace_budget"): W.append("P1 no pace_budget declared (seconds per section)")
+    # P2: the longest stretch with nothing new. A line is a turn if the meter moves on it, a loop opens or closes on it, a
+    # number is spoken, or the job changes.
+    opens = {lp["open"] for lp in loops or []} | {lp.get("close") for lp in loops or [] if lp.get("close")}
+    NUMW = set("one two three four five six seven eight nine ten eleven twelve twenty thirty forty fifty sixty hundred thousand".split())
+    run_s, worst_run, run_ids, worst_ids, prev_m, prev_job = 0.0, 0.0, [], [], None, None
+    for x in L:
+        a, b = t_est[x["id"]]
+        turn = (x["id"] in opens or x["job"] != prev_job or (x.get("meter") is not None and x["meter"] != prev_m)
+                or any(w in NUMW or w.isdigit() for w in norm(x["say"])))
+        if turn: run_s, run_ids = 0.0, []
+        run_s += b - a; run_ids.append(x["id"])
+        if run_s > worst_run: worst_run, worst_ids = run_s, list(run_ids)
+        prev_m = x.get("meter") if x.get("meter") is not None else prev_m; prev_job = x["job"]
+    cap = lim.get("max_still_s", 8.0)
+    if worst_run > cap: F.append(f"P2 ~{worst_run:.1f} s with nothing new ({'-'.join([worst_ids[0], worst_ids[-1]])}) > {cap} s")
+    # P3 sentence shape: hook sentences short, no sentence long, rhythm varied (4 sentences in a row within 1 word = a drone)
+    sents = [(x["id"], x["job"], s) for x in L for s in re.split(r"(?<=[.?!])\s+", x["say"].strip()) if words(s)]
+    hs = lim.get("hook_sentence_words", 7); ms = lim.get("sentence_words", 12)
+    for i, j, s in sents:
+        n = len(words(s))
+        if j == order[0] and n > hs: F.append(f"P3 {i}: hook sentence of {n} words > {hs}: '{s}'")
+        elif n > ms: F.append(f"P3 {i}: sentence of {n} words > {ms}: '{s}'")
+    ln = [len(words(s)) for _, _, s in sents]
+    for k in range(len(ln) - 3):
+        if max(ln[k:k + 4]) - min(ln[k:k + 4]) <= 1:
+            W.append(f"P3 four sentences in a row of {min(ln[k:k + 4])}-{max(ln[k:k + 4])} words from {sents[k][0]}: vary the rhythm"); break
     # ---- L: ledger
     g = d.get("ledger")
     after, end = {}, None
@@ -158,6 +232,14 @@ def check(path):
             for s in segs:
                 pa = s.get("pause_after", 0) or 0
                 if pa > max(lim["max_pause_s"], allow.get(x["id"], 0)): F.append(f"A1 {x['id']}: pause {pa} s > {lim['max_pause_s']} s")
+        # A3: emotion from the WAVs (tools/autoreview/emotion.py; numpy; provisional limits, so warnings). The WAVs sit in
+        # <delivery dir>/audio/<id>.wav
+        try:
+            sys.path.insert(0, os.path.join(ROOT, "tools", "autoreview")); import emotion
+            for c in emotion.run(os.path.join(ROOT, os.path.dirname(dl), "audio"), os.path.join(ROOT, dl))[0]:
+                if not c["pass"]: W.append(f"A3 {c['id']} {c['name']}: {c['value']}")
+        except ImportError as e:
+            W.append(f"A3 emotion check skipped ({e})")
     # ---- M: the publish filter knows the story
     mk = markers()
     if mk is None: W.append("M  tools/publish/story_markers.txt not found")

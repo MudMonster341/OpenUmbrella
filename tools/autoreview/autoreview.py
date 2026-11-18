@@ -145,6 +145,26 @@ def picture_jumps(small, fps):
     return jumps
 
 
+def shot_pacing(shots, end):
+    """shots: [(t0, t1)] -> median and longest shot, and cuts inside the first 5 s. Reference story reels (reelkit, 2026-11-18):
+    median 1.58 / 1.73 s, longest 3.97 / 4.80 s, 4 / 3 cuts before 5 s (ig-pixel, ig-roblox)"""
+    durs = [min(t1, end) - t0 for t0, t1 in shots if min(t1, end) > t0]
+    cuts5 = sum(1 for t0, _ in shots if 0 < t0 < 5.0)
+    return (float(np.median(durs)) if durs else 0.0), (max(durs) if durs else 0.0), cuts5
+
+
+def motion_per_second(small, fps):
+    """mean picture change per 1 s window, frames compared 1/30 s apart whatever the fps (60 fps halves a per-frame number),
+    caption band and badge masked. Reference story reels: dead seconds (< 0.5) 17% / 2%; the first 5 s never under 2.1"""
+    k = max(1, round(fps / 30)); m = np.ones(small.shape[1:], bool); m[:12, :] = False; m[60:84, :] = False
+    d = np.abs(small[k:] - small[:-k])[:, m].mean(1)
+    n = int(len(small) // fps)
+    return np.array([d[int(i * fps):max(int(i * fps) + 1, int((i + 1) * fps) - k)].mean() for i in range(n)])
+
+
+PACE = {"median_shot_s": 2.5, "longest_shot_s": 5.0, "cuts_first5": 2, "dead": 0.5, "dead_share": 0.15, "hook_floor": 1.0}
+
+
 # ------------------------------------------------------------------------------------------------ picture
 def global_shift(a, b, win):
     """phase correlation: the whole-frame shift between two frames, in pixels of this resolution"""
@@ -234,6 +254,22 @@ def picture(plan, video, info):
             if d[i0 + 1:i1].max() < 0.12: freeze_vo.append(round(float(a), 2))
     check("V9", "Nothing freezes while the voice talks", not freeze_vo, f"{len(freeze_vo)} frozen half-seconds" + (f" from {freeze_vo[:5]}" if freeze_vo else ""),
           "no 0.5 s window under 0.12 mean change during a line", "reel-builder skill: 'no frozen beats while the VO talks'; filmcheck M1")
+
+    # pacing (2026-11-18, the user: "maybe pacing and animation need more work"; Part 1's 30% skip). WARNINGS: calibrated on two
+    # reference story reels only (research/reels/ig-pixel-*, ig-roblox-*), never on our own audience.
+    REF = "reference story reels measured 2026-11-18 (reelkit: ig-pixel, ig-roblox); the user's 'pacing and animation' note; Part 1's 30% skip"
+    med, longest, c5 = shot_pacing([(s["t0"], s["t1"]) for s in plan["shots"]], info["vdur"])
+    check("P1", "Shots are short enough (pacing)", med <= PACE["median_shot_s"] and longest <= PACE["longest_shot_s"] and c5 >= PACE["cuts_first5"],
+          f"median {med:.2f} s, longest {longest:.2f} s, {c5} cuts in the first 5 s",
+          f"median <= {PACE['median_shot_s']} s, longest <= {PACE['longest_shot_s']} s, >= {PACE['cuts_first5']} cuts before 5 s", REF, blocker=False)
+    mps = motion_per_second(small, fps)
+    dead = [i for i, v in enumerate(mps) if v < PACE["dead"]]
+    check("P2", "Something moves every second (motion per second)", len(dead) <= PACE["dead_share"] * len(mps),
+          f"{len(dead)}/{len(mps)} dead seconds" + (f" at {dead[:8]} s" if dead else f"; median {np.median(mps):.2f}"),
+          f"<= {PACE['dead_share']:.0%} of seconds under {PACE['dead']} mean change", REF, blocker=False)
+    low5 = [f"{i}-{i + 1} s: {v:.2f}" for i, v in enumerate(mps[:5]) if v < PACE["hook_floor"]]
+    check("P3", "The first 5 s never slow down", not low5, "; ".join(low5) or f"lowest {mps[:5].min():.2f}",
+          f"every second of 0-5 s >= {PACE['hook_floor']} (references >= 2.1; Part 1 v5 measured 0.57)", REF, blocker=False)
 
     # the hook: the virality skill's checklist, the parts that carry over to a story reel. WARNINGS, not blockers: its evidence is
     # 262 posts of one account selling AI tools (Ootto / @jayantcreates.ai), not story reels. Captions and the badge are masked
@@ -363,6 +399,13 @@ def voice(plan, film, asr):
           "the user 2026-11-16: 'we shouldn't have more than half a second gap where there is no word said ... the gaps give the user a way to scroll'")
     check("S1", "Every voice take is speech, not breath", not breath, "; ".join(breath) or "all voiced", ">= 30% of loud frames voiced",
           "ERR-0017: L06 'And...' was 1.1 s of breath for four versions")
+    # emotion (2026-11-18, the user: "maybe the audio needs to better convey emotion"). Warnings: thresholds are provisional
+    dl = film / "voice" / "delivery.json"
+    if dl.exists():
+        import emotion  # noqa: E402  (tools/autoreview/emotion.py, beside this file)
+        for c in emotion.run(audio, dl)[0]:
+            check(c["id"], c["name"], c["pass"], c["value"], c["limit"],
+                  "the user 2026-11-18: 'the audio needs to better convey emotion'; tools/autoreview/emotion.py (provisional limits)", blocker=False)
     with wave.open(str(film / "sound" / "out" / "voice_clean" / f"{ids[0]}.wav")) as w:
         check("S2", "The voice is mixed at 48 kHz from a real resampler", w.getframerate() == 48000, f"{w.getframerate()} Hz", "48000",
               "ERR-0017: linear resampling mirrored hiss above 12 kHz", blocker=True)

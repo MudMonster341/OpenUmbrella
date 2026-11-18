@@ -82,6 +82,39 @@ def main():
     ok("T6 background_stats fails a gradient, passes a busy scene", not ar.background_ok(d, c) and ar.background_ok(d2, c2),
        f"gradient {c} colours / detail {d:.1f}; busy {c2} colours / detail {d2:.1f}")
 
+    # T7-T8 (2026-11-18): pacing. One 7 s take fails P1; reference-like 1.6 s shots pass. A still second is dead (P2/P3)
+    med, lng, c5 = ar.shot_pacing([(0, 7.0), (7.0, 9.0)], 9.0)
+    med2, lng2, c52 = ar.shot_pacing([(i * 1.6, (i + 1) * 1.6) for i in range(6)], 9.6)
+    p1_bad = med > ar.PACE["median_shot_s"] or lng > ar.PACE["longest_shot_s"] or c5 < ar.PACE["cuts_first5"]
+    p1_ok = med2 <= ar.PACE["median_shot_s"] and lng2 <= ar.PACE["longest_shot_s"] and c52 >= ar.PACE["cuts_first5"]
+    ok("T7 shot_pacing fails one long take, passes 1.6 s cuts", p1_bad and p1_ok, f"long take: median {med}, longest {lng}, {c5} cuts; cut: {med2}, {lng2}, {c52}")
+    rng = np.random.default_rng(3); mv = np.full((240, 96, 54), 80, np.float32)                # 4 s at 60 fps
+    for i in range(240): mv[i, 20:56, :] = 80 + 60 * np.sin(i / 3 + np.arange(54) / 5)          # seconds 0-1 and 3-4: moving bands
+    mv[60:180] = mv[60]                                                                         # seconds 1-3: frozen
+    mps = ar.motion_per_second(mv, 60)
+    ok("T8 motion_per_second finds the frozen seconds only", [i for i, v in enumerate(mps) if v < ar.PACE["dead"]] == [1, 2],
+       f"per second {np.round(mps, 2).tolist()} (frozen 1-3 s)")
+
+    # T9-T11 (2026-11-18): emotion. The pitch tracker on a known voice-like tone; monotone lines fail E1/E2; a 'high' line
+    # that is quieter, lower and slower than the rest fails E3
+    import emotion as em
+    def voice_like(f0s, amp=0.3, sr=SR):
+        f0 = np.interp(np.arange(int(1.5 * sr)), np.linspace(0, int(1.5 * sr), len(f0s)), f0s); ph = 2 * np.pi * np.cumsum(f0) / sr
+        return amp * sum(np.sin(k * ph) / k for k in range(1, 8))
+    write_wav(tmp / "t150.wav", voice_like([150, 150]))
+    m = em.measure(tmp / "t150.wav", 5)
+    ok("T9 pitch tracker reads 150 Hz (no octave error)", abs(m["f0_hz"] - 150) < 4 and m["range_st"] < 1, f"{m['f0_hz']} Hz, range {m['range_st']} st")
+    flat = [{"id": f"L{i:02d}", "target": t, "f0_hz": 120.0, "range_st": 1.0, "loud_db": -22.0, "rate_wps": 4.0}
+            for i, t in enumerate(["high", "mid", "low", "mid", "high", "low"])]
+    c = {x["id"]: x["pass"] for x in em.analyse([dict(r) for r in flat])[0]}
+    ok("T10 a monotone narration fails E1 and E2", not c["E1"] and not c["E2"], f"{c}")
+    varied = [dict(r, f0_hz={"high": 140, "mid": 120, "low": 105}[r["target"]], loud_db={"high": -19, "mid": -22, "low": -25}[r["target"]],
+                   rate_wps={"high": 4.6, "mid": 4.0, "low": 3.4}[r["target"]], range_st=6.0) for r in flat]
+    planted = [dict(r) for r in varied]; planted[0].update(f0_hz=100, loud_db=-26, rate_wps=3.2)    # L00 is tagged high, read low
+    c1 = {x["id"]: x for x in em.analyse([dict(r) for r in varied])[0]}; c2 = {x["id"]: x for x in em.analyse(planted)[0]}
+    ok("T11 E3 passes moods that are heard, fails a 'high' line read cold", c1["E3"]["pass"] and not c2["E3"]["pass"] and "L00" in c2["E3"]["value"],
+       f"clean: {c1['E3']['value']}; planted: {c2['E3']['value']}")
+
     print(f"SELFTEST {'PASS' if not fails else 'FAIL'}: {len(ran) if not fails else len(fails)} {'tests pass' if not fails else 'failed: ' + ', '.join(fails)}")
     return 1 if fails else 0
 
