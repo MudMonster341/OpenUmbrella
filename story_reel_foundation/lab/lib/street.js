@@ -30,7 +30,7 @@ export function buildStreet(g, dyn) {
   let x = -40, n = 0;
   while (x < 40) {
     const w = 4.2 + rnd() * 2.6, cx = x + w / 2, h = 7 + rnd() * 6, floors = h > 10 ? 3 : 2, wall = rnd() < 0.6 ? brick[n % 3] : render[n % 4], fr = frameM[n % 4];
-    rbox(g, w, h, 3, wall, cx, h / 2, -4.2, { r: 0.02 });
+    rbox(g, w, h - 2.75, 3, wall, cx, 2.75 + (h - 2.75) / 2, -4.2, { r: 0.02 }); rbox(g, w, 2.75, 2.2, wall, cx, 1.375, -4.6, { r: 0.02 });   /* the shop floor is open to z -3.5 (the windows showed the box face: critic v3) */
     rbox(g, w + 0.06, 0.3, 3.12, stone, cx, h + 0.15, -4.2, { r: 0.03 });                                   /* the parapet cap */
     for (const s of [-1, 1]) rbox(g, 0.32, 3.4, 0.18, stone, cx + s * (w / 2 - 0.16), 1.7, -2.62, { r: 0.02 });   /* pilasters */
     const st = signTex(NAMES[n % NAMES.length], { w: 1024, h: 160, bg: ["#1e3a2e", "#3a1e22", "#1e2a4a", "#2a2420", "#f2efe6"][n % 5], fg: n % 5 === 4 ? "#2a2420" : "#f3e6c4", font: "bold 96px Georgia, serif" });
@@ -41,7 +41,7 @@ export function buildStreet(g, dyn) {
     for (const [a, b] of [[[wx - ww / 2, 0.5, -2.6], [wx + ww / 2, 0.5, -2.6]], [[wx - ww / 2, 2.6, -2.6], [wx + ww / 2, 2.6, -2.6]]]) tube(g, a, b, 0.04, fr, 6);
     for (let i = 0; i <= 2; i++) rbox(g, 0.07, 2.12, 0.08, fr, wx - ww / 2 + (ww * i) / 2, 1.55, -2.6, { r: 0.01 });
     add(g, new THREE.PlaneGeometry(ww, 2.1), glass, wx, 1.55, -2.58);
-    add(g, new THREE.PlaneGeometry(ww, 2.2), EM(ic, 1.3 + 0.5 * rnd()), wx, 1.55, -3.6);
+    add(g, new THREE.PlaneGeometry(ww, 2.2), EM(ic, 1.3 + 0.5 * rnd()), wx, 1.55, -3.48);
     for (const y of [0.9, 1.5]) rbox(g, ww * 0.8, 0.04, 0.35, M(0x5a4030, 0.6), wx, y, -3.35, { r: 0.01 });
     for (let i = 0; i < 9; i++) { const k = rnd(); rbox(g, 0.12 + 0.15 * k, 0.15 + 0.2 * rnd(), 0.15, M([0xd8363a, 0x2f7fd8, 0xf5c400, 0x2fbf5a, 0xf2f0ea, 0x7b4fc4][Math.floor(rnd() * 6)], 0.6), wx - ww * 0.38 + (i % 5) * ww * 0.19, (i < 5 ? 0.92 : 1.52) + 0.1, -3.32, { r: 0.01 }); }
     rbox(g, 0.95, 2.3, 0.08, fr, dx, 1.15, -2.66, { r: 0.02 }); add(g, new THREE.PlaneGeometry(0.6, 1.2), EM(ic, 0.45), dx, 1.5, -2.615); add(g, new THREE.SphereGeometry(0.03, 10, 8), M(0xd9b35a, 0.3, { metalness: 0.9 }), dx - 0.36, 1.1, -2.6);

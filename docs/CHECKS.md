@@ -9,6 +9,7 @@ in its source file. A pass means no KNOWN fault is present. It never means the f
 |---|---|---|---|
 | Writing or changing a script | `python tools/scriptcheck/scriptcheck.py films/<slug>/<part>_script.json` (the agent, after every edit; `--all` for every part) | scriptcheck: every family below | FAIL = exit 1 |
 | Before the script-critic and before voicing | the same, then the `script-critic` agent | — | the critic's verdict |
+| A second opinion on a script (optional, never a gate) | `python tools/freellm/script_opinion.py films/<slug>/<part>_script.json --context-file <series-so-far.txt>` (2026-11-19) | two free keyless models (ovh, llm7) read the lines and pictures: hook score, plot holes, twist score, a safety read; written to `films/<slug>/review/<part>_opinions.md` | no: an extra opinion. The prompt leaves the machine, so only with the user's yes for that story |
 | Every render | `python tools/ship/ship.py films/<slug> vN --name <part> --script films/<slug>/<part>_script.json` | 0 scriptcheck · 1 guards (G1-G11, including both self-tests) and the lab gates · 2 render · 3 mux · 4 autoreview · 5 contact sheet · 6 Instagram file + `ig_check.py` · 7 phone copy | yes, at each step |
 | Every commit | the git `pre-commit` hook (automatic) | the story-word filter on files that will be published | yes |
 | Every publish | `python tools/publish/publish_code.py` (the only way to push) | guards, then the strip/freeze/story/media/size scan, then a check of the remote | yes |
@@ -57,6 +58,8 @@ in its source file. A pass means no KNOWN fault is present. It never means the f
 - **E emotion** (`emotion.py`, warns, provisional): pitch, loudness and rate per line against each line's mood.
 
 **Lab gates** (`story_reel_foundation/lab/check_*.mjs`, run by ship.py): direction, on-screen word counts, the crash shot.
+
+**D3** (`story_reel_foundation/lab/check_words_p2.mjs`, 2026-11-19, run by the auto-review for `direction_p2.js`): GOAL T1 for a later part, every 0.02 s: caption + days meter (number, '/ 2,000', chip) + phone bubbles + the two cards + the big number + the end card. Proven on the v3 direction file: it reports the 9 and 8 words the film-critic counted by hand; v5's file passes at 7/7. It counts what the direction file declares, not pixels.
 
 ## Not automated, said plainly
 

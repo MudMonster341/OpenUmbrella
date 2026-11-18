@@ -500,7 +500,12 @@ def main():
     plan = json.loads(sh(["node", "export_plan.mjs", a.direction, a.timing], cwd=LAB).stdout)
     info = probe(video)
     if a.direction == "direction.js": plan_gates()                     # D1/D2 read Part 1's direction.js and its bus: not a later part's
-    else: check("D1", "Direction rules", True, f"n/a: check_direction.mjs and check_bus.mjs read Part 1's direction.js, not {a.direction}", "-", "ROADMAP D19", blocker=False)
+    else:
+        check("D1", "Direction rules", True, f"n/a: check_direction.mjs and check_bus.mjs read Part 1's direction.js, not {a.direction}", "-", "ROADMAP D19", blocker=False)
+        if a.direction == "direction_p2.js" and (LAB / "check_words_p2.mjs").exists():   # 2026-11-19: the film-critic counted T1 by hand on p2_m2_v3 (9 and 8 words)
+            r = sh(["node", "check_words_p2.mjs", "./" + a.direction, str(film / "part2_script.json")], cwd=LAB)
+            check("D3", "Words on screen, a later part (GOAL T1, <= 7 at any instant)", r.returncode == 0, (r.stdout.strip().splitlines() or ["(no output)"])[-1],
+                  "exit 0", "check_words_p2.mjs; GOAL T1; the film-critic on p2_m2_v3 (2026-11-19)")
     per_shot, cuts = picture(plan, video, info)
     sound(plan, film, video, info, a.sound_dir)
     voice(plan, film, not a.no_asr, a.voice_dir, a.sound_dir)
