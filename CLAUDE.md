@@ -202,6 +202,7 @@ skill or agent file whenever it turns out to be wrong.
 
 ## Working conventions
 
+- **Every check, what runs it and when:** [docs/CHECKS.md](docs/CHECKS.md). Scripts: `python tools/scriptcheck/scriptcheck.py --all` after every script edit; renders: `ship.py ... --script <part>_script.json`.
 - **Ship a version with ONE command:** `python tools/ship/ship.py films/<slug> vN`. It runs the gates and the render,
   muxes the sound, then runs the review, the failure frames, the contact sheet, the Instagram file and a phone copy. A quick look
   at one span: `--start S --end E --fps 30`. Never hand-run those steps ([docs/USAGE_AUDIT.md](docs/USAGE_AUDIT.md)).

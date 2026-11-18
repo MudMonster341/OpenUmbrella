@@ -20,7 +20,7 @@ Then read the template: `market_research_and_intelligence/story/STORY_TEMPLATE.m
 |---|---|---|---|
 | 1 | **Intake** | `films/<slug>/STORY.md` §1–2 from the user's words | Format and style chosen by the user, not assigned |
 | 2 | **Bible + episode plan** | STORY.md §3–4 | All episodes outlined before one is scripted |
-| 3 | **Script** | STORY.md §5–6, five hooks then one; **the script as data in `films/<slug>/<part>_script.json`** (one format for every part) | **`python tools/scriptcheck/scriptcheck.py <file>` must PASS** (text, structure, the virality hook checklist, the ledger, audio once voiced, the publish filter); then the **`script-critic` agent**, then **the user reads it** |
+| 3 | **Script** | STORY.md §5–6, five hooks then one; **the script as data in `films/<slug>/<part>_script.json`** (one format for every part) | **`python tools/scriptcheck/scriptcheck.py <file>` must PASS** (text, structure, the virality hook checklist, hook craft, pacing, no repeats, characters and cast, the goal, complexity, the ledger, audio once voiced, the publish filter: the full list is `docs/CHECKS.md`); then the **`script-critic` agent**, then **the user reads it** |
 | 4 | **Voice** | one WAV per line in `audio/` | Every line measured for duration |
 | 5 | **Timings** | `words.json` | `tools/reelkit/.venv/Scripts/python.exe tools/reelkit/align.py <audio_dir> --check` (system python has no faster-whisper; found 2026-11-18) (offline; approved 2026-11-14) |
 | 6 | **Build** | `index.html` from the style document | `npx hyperframes snapshot` at every line |

@@ -91,6 +91,10 @@ def main():
         expect("C1 an introduction that never says who they are", d, "C1")
         d = copy.deepcopy(clean); d["characters"][n0]["introduced"] = d["lines"][-2]["id"]
         expect("C1 a character named long before being introduced", d, "C1")
+        d = copy.deepcopy(clean); d["characters"][n0]["role"] = "her little brother"; d["cast"][n0]["height_vs_lead"] = 1.05
+        expect("C2 a younger brother as tall as the lead", d, "C2")
+        d = copy.deepcopy(clean); d["cast"].pop(n0)
+        expect("C2 a character with no cast spec", d, "C2")
         d = copy.deepcopy(clean); d["limits"]["characters"] = 1
         expect("K2 too many characters", d, "K2")
     d = copy.deepcopy(clean); d["goal"]["line"] = d["lines"][-3]["id"]

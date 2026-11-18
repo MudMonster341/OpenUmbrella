@@ -56,11 +56,20 @@ def main():
     ap.add_argument("--name", default="part1_base", help="file prefix (default part1_base)")
     ap.add_argument("--fps", type=int, default=60); ap.add_argument("--start", type=float); ap.add_argument("--end", type=float)
     ap.add_argument("--no-render", action="store_true"); ap.add_argument("--skip-gates", action="store_true")
+    ap.add_argument("--script", help="the part's films/<slug>/<part>_script.json: must pass scriptcheck before the render")
     a = ap.parse_args()
     film = (ROOT / a.film).resolve(); name = f"{a.name}_{a.version}"
     rd = film / "renders"; silent = rd / "lab_silent" / f"{name}_silent.mp4"; final = rd / f"{name}.mp4"; logs = rd / "logs"
     for d in (silent.parent, logs, film / "review", EVID): d.mkdir(parents=True, exist_ok=True)
     span = a.start is not None or a.end is not None
+
+    # 0. the script gate (2026-11-18): the part's script must pass scriptcheck before anything is rendered
+    if not a.skip_gates:
+        if a.script:
+            s = run([sys.executable, "tools/scriptcheck/scriptcheck.py", a.script], log=logs / f"{name}_scriptcheck.log")
+            step("scriptcheck", s.returncode == 0, (s.stdout.strip().splitlines() or ["(no output)"])[-1])
+        else:
+            print("  WARN scriptcheck: no --script given; the part's script was not checked")
 
     # 1. guards and lab gates, quiet
     if not a.skip_gates:

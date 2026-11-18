@@ -261,6 +261,16 @@ def check(path):
         if t_est[x["id"]][0] < 15.0:
             nums |= {"clock" if ":" in t else re.sub(r"[^0-9]", "", t) for t in " ".join(x["screen"]).split() if re.sub(r"[^0-9]", "", t)}
     if len(nums) > lim.get("numbers_first15", 4): F.append(f"K1 {len(nums)} different numbers on screen in the first 15 s {sorted(nums)} > {lim.get('numbers_first15', 4)}")
+    # C2 (the user 2026-11-18: "he must be younger brother so shorter, and so on"): every on-screen character has a cast spec
+    # the build is checked against: height relative to the lead, age, look. A younger sibling is shorter than the lead.
+    cast = d.get("cast")
+    for n, c in (ch or {}).items():
+        cs = (cast or {}).get(n)
+        if not cs or not all(k in cs for k in ("height_vs_lead", "age", "look")):
+            F.append(f"C2 {n}: no cast spec (height_vs_lead, age, look) for the build to be checked against"); continue
+        if re.search(r"\b(little|younger|kid)\b", c.get("role", ""), re.I) and not cs["height_vs_lead"] < 1.0:
+            F.append(f"C2 {n} is '{c['role']}' but height_vs_lead {cs['height_vs_lead']} is not below the lead's 1.0")
+        if not 0.5 <= cs["height_vs_lead"] <= 1.2: F.append(f"C2 {n}: height_vs_lead {cs['height_vs_lead']} outside 0.5-1.2")
     nch = len([n for n, c in (ch or {}).items()])
     if nch > lim.get("characters", 4): F.append(f"K2 {nch} characters > {lim.get('characters', 4)} for one part")
     # ---- L: ledger
