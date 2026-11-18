@@ -31,6 +31,7 @@ research/
 
 # third-party CC0 assets: re-download per docs/REPO_REGISTRY.md section 11c (not committed)
 story_reel_foundation/lab/assets/ual/
+story_reel_foundation/lab/assets/cc0/
 /assets/
 
 # frames of our reels: evidence stays on this machine, never pushed (the user, 2026-11-16: "make sure we dont upload our reels")
