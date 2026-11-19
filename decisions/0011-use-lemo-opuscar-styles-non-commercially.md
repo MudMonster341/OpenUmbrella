@@ -62,5 +62,5 @@ different repo, and we rebuilt that capability ourselves anyway
 ## Links
 
 - Supersedes: [ADR 0008](0008-learn-styles-then-author-our-own.md)
-- Related: [ADR 0010](0010-install-reference-repos-with-a-boundary.md), [ADR 0012](0012-external-tools-layout.md)
+- Related: [ADR 0010](0010-install-reference-repos-with-a-boundary.md), [external_tools/README.md](../external_tools/README.md) (the layout; no ADR was written for it)
 - Playbook: [docs/REPO_PLAYBOOK.md](../docs/REPO_PLAYBOOK.md)

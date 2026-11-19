@@ -1,0 +1,4 @@
+#!/bin/sh
+# pre-commit: no story words in files that will be published (tools/publish/publish_code.py --check-staged).
+# Installed by scripts/install_hooks.sh. Story files themselves are private paths and are not scanned.
+exec python tools/publish/publish_code.py --check-staged

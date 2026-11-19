@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <!-- part2.html: FROM ME Part 2 DRAFT (2026-11-18). Head and base CSS copied from index.html (the phone, cards and captions share one look). -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.181.2/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #8ec5f5; }
+      #root { width: 100%; height: 100%; position: relative; }
+      #three-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      .ov { position: absolute; pointer-events: none; font-family: "Poppins", "Arial Black", sans-serif; font-weight: 800; }
+      #caption { left: 50%; top: 76%; font-size: 140px; line-height: 1; color: #fff; letter-spacing: 2px; text-shadow: 0 0 2px #17171c, 7px 0 0 #17171c, -7px 0 0 #17171c, 0 7px 0 #17171c, 0 -7px 0 #17171c, 5px 5px 0 #17171c, -5px 5px 0 #17171c, 5px -5px 0 #17171c, -5px -5px 0 #17171c, 0 12px 18px rgba(0,0,0,0.35); white-space: nowrap; transform: translate(-50%, -50%); opacity: 0; z-index: 5; }
+      #caption.hot { color: #ffd84a; }
+      #stamp { left: 52px; top: 246px; display: flex; align-items: center; gap: 16px; background: linear-gradient(160deg, #ffffff 0%, #fff3df 100%); border: 6px solid #17171c; border-radius: 32px; padding: 10px 26px 10px 20px; opacity: 0; z-index: 5; transform-origin: 0 0; }
+      #stampIcon { display: block; flex: none; transform-origin: 50% 50%; }
+      #stampMain { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+      #stampNum { font-size: 80px; color: #17171c; line-height: 0.95; display: inline-block; transform-origin: left center; font-variant-numeric: tabular-nums; }
+      #stampLabel { font-size: 28px; letter-spacing: 3px; line-height: 1; color: #b5561a; font-weight: 700; }
+      #stampSep { display: block; width: 5px; align-self: stretch; margin: 6px 0; border-radius: 3px; background: #17171c; opacity: 0.25; }
+      #stampClockBox { display: block; }
+      #stampClock { font-size: 42px; line-height: 1; color: #17171c; font-weight: 700; white-space: nowrap; }
+      #stampDelta { position: absolute; left: 0; top: 100%; margin-top: 16px; font-size: 70px; line-height: 1; color: #fff; background: #d8363a; border: 6px solid #17171c; border-radius: 26px; padding: 6px 22px; box-shadow: 0 0 26px rgba(216,54,58,0.7); }
+      #stampDelta:empty { display: none; }
+      #bubble { display: none; }
+      #banner { right: 56px; top: 262px; padding: 14px 34px; background: #17171c; color: #fff; border-radius: 999px; font-size: 46px; letter-spacing: 4px; opacity: 0; z-index: 5; }
+      #flash { inset: 0; background: #fff; opacity: 0; z-index: 4; }
+      #ghostv { inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(150,22,34,0) 36%, rgba(150,22,34,0.5) 100%); opacity: 0; z-index: 3; }
+      /* inserts (lib/mograph.js): a phone on a bedside table, the shelter clock */
+      #inserts { inset: 0; z-index: 2; }
+      #room { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at 30% 18%, #ffcf96 0%, #8a5a3a 32%, #2a1c18 75%); overflow: hidden; }
+      #lampglow { position: absolute; left: -120px; top: -160px; width: 760px; height: 760px; border-radius: 50%; background: radial-gradient(circle, rgba(255,214,150,0.75), rgba(255,214,150,0) 70%); }
+      .bok { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(255,226,180,0.45), rgba(255,226,180,0) 70%); }
+      #bok1 { left: 700px; top: 160px; width: 260px; height: 260px; } #bok2 { left: 820px; top: 420px; width: 150px; height: 150px; } #bok3 { left: 120px; top: 520px; width: 190px; height: 190px; }
+      #table { position: absolute; left: -200px; right: -200px; top: 760px; bottom: -400px; transform: perspective(1400px) rotateX(52deg); transform-origin: 50% 0;
+               background: repeating-linear-gradient(92deg, #7a4f31 0px, #8b5b3a 14px, #6f462b 30px, #84573a 52px), linear-gradient(#000, #000); background-blend-mode: normal;
+               box-shadow: inset 0 60px 120px rgba(0,0,0,0.45); }
+      #phoneWrap { position: absolute; left: 50%; top: 52%; width: 0; height: 0; opacity: 0; perspective: 1600px; }
+      #phone { position: absolute; left: 0; top: 0; width: 660px; height: 1280px; border-radius: 86px; background: #f4f2ee; border: 22px solid #17171c; box-shadow: 0 0 0 4px #3a3d44; overflow: hidden; }
+      #phShadow { position: absolute; left: -330px; top: -600px; width: 660px; height: 1280px; border-radius: 86px; background: rgba(0,0,0,0.5); filter: blur(40px); transform-origin: 50% 60%; }
+      #notch { position: absolute; left: 50%; top: 18px; width: 170px; height: 44px; margin-left: -85px; border-radius: 22px; background: #17171c; }
+      .buzz { position: absolute; top: 470px; width: 40px; height: 200px; border: 8px solid rgba(23,23,28,0.7); border-radius: 50%; opacity: 0; }
+      #buzzL { left: -20px; border-right: none; border-top: none; border-bottom: none; } #buzzR { right: -20px; border-left: none; border-top: none; border-bottom: none; }
+      #clockWrap { position: absolute; left: 50%; top: 42%; width: 820px; height: 820px; opacity: 0; transform: translate(-50%, -50%); filter: drop-shadow(0 40px 60px rgba(0,0,0,0.45)); }
+      #clock { width: 100%; height: 100%; }
+      .dbg { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 5px solid #0f0; font: 700 22px sans-serif; color: #000; z-index: 9; }
+      /* ---- Part 2 (2026-11-18): photo-only thread headers (P2.20 #2), no Part 1 replay band on ME's photo, the days meter, the big number, the two cards ---- */
+      #phName, #phBName { display: none !important; }
+      #meBand { display: none !important; }
+      #meter { left: 52px; top: 150px; background: linear-gradient(160deg, #ffffff 0%, #fff3df 100%); border: 6px solid #17171c; border-radius: 30px; padding: 12px 26px 14px; opacity: 0; z-index: 5; box-shadow: 0 10px 22px rgba(0,0,0,0.32); }
+      #mTop { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+      #mNum { font-size: 76px; color: #17171c; line-height: 1; font-variant-numeric: tabular-nums; display: inline-block; transform-origin: left center; }
+      #mGoal { font-size: 46px; color: #5a5a66; line-height: 1; }
+      #mBar { position: relative; width: 440px; height: 26px; border: 5px solid #17171c; border-radius: 15px; margin-top: 10px; background: #e9e3d8; overflow: hidden; }
+      #mFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #ff9a2a, #ffcc3a); }
+      #mGold { position: absolute; right: 0; top: 0; bottom: 0; width: 12px; background: #ffd84a; box-shadow: 0 0 14px #ffd84a; }
+      #mChip { position: absolute; left: 100%; top: 14px; margin-left: 18px; font-size: 64px; line-height: 1; color: #fff; border: 6px solid #17171c; border-radius: 26px; padding: 6px 20px; opacity: 0; white-space: nowrap; }
+      #big { left: 50%; top: 40%; display: flex; flex-direction: column; align-items: center; gap: 34px; z-index: 5; opacity: 0; transform: translate(-50%, -50%); }
+      #bigNum { font-size: 210px; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; text-shadow: 0 0 2px #17171c, 10px 0 0 #17171c, -10px 0 0 #17171c, 0 10px 0 #17171c, 0 -10px 0 #17171c, 7px 7px 0 #17171c, -7px 7px 0 #17171c, 7px -7px 0 #17171c, -7px -7px 0 #17171c, 0 0 60px rgba(47,191,90,0.6); }
+      #bigChip { font-size: 150px; line-height: 1; color: #fff; background: #2fbf5a; border: 9px solid #17171c; border-radius: 50px; padding: 8px 50px; opacity: 0; box-shadow: 0 0 50px rgba(47,191,90,0.8); }
+      #cards { inset: 0; z-index: 5; }
+      .card { position: absolute; top: 420px; width: 470px; padding: 26px 20px; background: #fff; border: 8px solid #17171c; border-radius: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px; box-shadow: 0 26px 54px rgba(0,0,0,0.38); opacity: 0; }
+      .card b { font-size: 130px; line-height: 1; } .card span { font-size: 50px; color: #17171c; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      #cA { left: 45px; } #cA b { color: #2fbf5a; } #cB { left: 565px; } #cB b { color: #d8363a; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-fps="30" data-start="0" data-duration="53.113" data-width="1080" data-height="1920">
+      <canvas id="three-layer" class="clip" data-start="0" data-duration="53.113" data-track-index="0" data-layout-allow-overflow></canvas>
+    </div>
+
+    <script type="module">
+      /* Part 2's director (2026-11-18, the DRAFT): it owns the clock and nothing else. Every number is in direction_p2.js (and timing_p2.js,
+         from measured audio). Shares lib/ with Part 1; builds NOTHING from world.js or sets.js (scriptcheck R1). Characters by role only. */
+      import * as THREE from "three";
+      import { makeOverlay, applyOverlay } from "./lib/fx.js";
+      import { DIRECTION as D } from "./direction_p2.js";
+      import { setupLook } from "./lib/look.js";
+      import { loadRig, makeActor, mixExpr, blinkAt } from "./lib/actor.js";
+      import { makeInserts, applyPhone, applyMe, applyEndCard } from "./lib/mograph.js";
+      import { buildSets2 } from "./lib/sets2.js";
+      import { CAST_P2 } from "./cast_p2.js";
+
+      const W = 1080, H = 1920, clamp01 = (x) => Math.min(1, Math.max(0, x)), easeOut = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+      const easeIO = (x) => { x = clamp01(x); return x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2; };
+      const back = (x) => { x = clamp01(x); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+      const canvas = document.getElementById("three-layer"), rootEl = document.getElementById("root");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(W, H, false); renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace;
+      const scene = new THREE.Scene(); scene.background = new THREE.Color(0x101010);
+      const camera = new THREE.PerspectiveCamera(34, W / H, 0.03, 400);
+      const sets = buildSets2(scene, D.origin);
+      const look = setupLook(renderer, scene, camera, D.look, W, H);
+      let hemi = null; scene.traverse((o) => { if (o.isHemisphereLight) hemi = o; });
+      const defaultEnv = scene.environment, envs = sets.envs ? sets.envs(renderer) : {};   /* per-set image-based light (roof.js) */
+      const closeKey = new THREE.SpotLight(0xffe2c4, 0, 7, 0.32, 0.65, 1.5); scene.add(closeKey, closeKey.target);
+      const overlay = makeOverlay(rootEl), ins = makeInserts(rootEl);
+      ins.enCard.textContent = D.end.title; ins.enSub.textContent = D.end.sub;
+      for (const k of ["nm", "ca", "ch", "clockWrap"]) if (ins[k]) ins[k].style.opacity = 0;
+      const mk = (html) => { const d = document.createElement("div"); d.innerHTML = html; const e = d.firstElementChild; rootEl.appendChild(e); return e; };
+      const meter = mk('<div id="meter" class="ov"><div id="mTop"><span id="mNum"></span><span id="mGoal">/ 2,000</span></div><div id="mBar"><i id="mFill"></i><b id="mGold"></b></div><span id="mChip" data-layout-allow-overflow></span></div>');
+      const mNum = meter.querySelector("#mNum"), mGoal = meter.querySelector("#mGoal"), mBar = meter.querySelector("#mBar"), mFill = meter.querySelector("#mFill"), mChip = meter.querySelector("#mChip");
+      const big = mk('<div id="big" class="ov"><div id="bigNum"></div><div id="bigChip"></div></div>'), bigNum = big.querySelector("#bigNum"), bigChip = big.querySelector("#bigChip");
+      const cards = mk('<div id="cards" class="ov"><div class="card" id="cA"><b></b><span></span></div><div class="card" id="cB"><b></b><span></span></div></div>');
+      const cA = cards.querySelector("#cA"), cB = cards.querySelector("#cB");
+      cA.querySelector("b").textContent = D.cards.a.title; cA.querySelector("span").textContent = D.cards.a.sub;
+      cB.querySelector("b").textContent = D.cards.b.title; cB.querySelector("span").textContent = D.cards.b.sub;
+      const fmt = (n) => Math.round(n).toLocaleString("en-US");
+      const O = (set, p) => [p[0] + D.origin[set][0], p[1] + D.origin[set][1], p[2] + D.origin[set][2]];
+
+      /* ---- tracks: each key inherits what it does not say (not cut/hide); a new set resets y and tilt ---- */
+      function resolve(keys) {
+        const out = []; let prev = null;
+        for (const k of keys) {
+          const base = prev ? { ...prev } : {}; delete base.cut; delete base.hide; delete base._yaw;
+          if (k.set && prev && k.set !== prev.set) { base.y = 0; base.tilt = 0; }
+          const r = { y: 0, tilt: 0, rate: 1, phone: false, ...base, ...k, _yaw: "yaw" in k }; out.push(r); prev = r;
+        }
+        return out;
+      }
+      const angLerp = (a, b, u) => { let d = ((b - a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * u; };
+      function stateAt(keys, T) {
+        if (T < keys[0].t) return null;
+        let i = 0; while (i < keys.length - 1 && T >= keys[i + 1].t) i++;
+        const k = keys[i], n = keys[i + 1];
+        if (k.hide) return null;
+        const s = { ...k };
+        if (n && !n.cut && !n.hide && n.set === k.set) {
+          const u = clamp01((T - k.t) / (n.t - k.t));
+          for (const p of ["x", "z", "y", "tilt"]) s[p] = k[p] + (n[p] - k[p]) * u;
+          const dx = n.x - k.x, dz = n.z - k.z, moving = Math.hypot(dx, dz) > 0.05;
+          if (moving && /Walk|Jog/.test(k.clip)) { s.yaw = Math.atan2(dx, dz); s.rate = Math.hypot(dx, dz) / (n.t - k.t) / (k.clip.startsWith("Jog") ? 2.4 : 0.97); }
+          else if (n._yaw) s.yaw = angLerp(k.yaw, n.yaw, u);
+        }
+        const p = keys[i - 1]; s.exprPrev = p && p.set === k.set ? p.expr : k.expr; s.exprU = clamp01((T - k.t) / 0.22);
+        return s;
+      }
+      function animTrack(keys) { const tr = []; let last = null; for (const k of keys) { const sig = k.clip + "|" + k.set; if (sig !== last) { tr.push({ t: k.t, clip: k.clip, rate: 1, fade: last && last.split("|")[1] === k.set ? 0.3 : 0.0 }); last = sig; } } return tr; }
+      function phoneSpans(keys) { const sp = []; let s0 = null; keys.forEach((k, i) => { if (k.phone && s0 == null) s0 = k.t; if ((!k.phone || i === keys.length - 1) && s0 != null) { sp.push({ kind: "phone", t0: s0, t1: k.phone ? 999 : k.t }); s0 = null; } }); return sp; }
+
+      const roles = { lead: { keys: resolve(D.tracks.lead), look: CAST_P2.lead.look, seed: 1 }, sib: { keys: resolve(D.tracks.sib), look: CAST_P2.sib.look, seed: 9 } };
+      for (const [k, x] of Object.entries(D.extras)) roles[k] = { keys: resolve(x.keys), look: x.look, seed: x.seed, boxes: x.boxes, umbrella: x.umbrella };
+      for (const r of Object.values(roles)) { r.anim = animTrack(r.keys); r.phoneG = phoneSpans(r.keys); }
+      const actors = {};
+
+      /* umbrellas, the pocket glow, the carried boxes */
+      const umb = (() => { const g = new THREE.Group(); const c = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.32, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x15151a, roughness: 0.6, side: THREE.DoubleSide })); c.position.y = 0.1; g.add(c);
+        const h = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.9, 6), new THREE.MeshStandardMaterial({ color: 0x2a2a2a })); h.position.y = -0.35; g.add(h); return g; });
+      for (const r of Object.values(roles)) if (r.umbrella) { r.umb = umb(); scene.add(r.umb); }
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), new THREE.MeshBasicMaterial({ color: 0xbff0ff })); const glowL = new THREE.PointLight(0x9fe0ff, 1.6, 1.6, 1.6); scene.add(glow, glowL);
+
+      function placeActors(T, set) {
+        for (const [k, r] of Object.entries(roles)) {
+          const a = actors[k]; if (!a) continue;
+          const s = stateAt(r.keys, T), vis = !!s && s.set === set;
+          a.root.visible = vis; if (r.umb) r.umb.visible = vis; if (!vis) continue;
+          a.root.position.set(...O(s.set, [s.x, s.y, s.z])); a.root.rotation.set(0, s.yaw ?? 0, 0); if (s.tilt) a.root.rotateX(s.tilt);
+          const tr = r.anim.map((e) => ({ ...e })); for (const e of tr) if (e.t <= T) e.rate = s.rate || 1;
+          a.perform(T, tr); a.gesture(T, r.phoneG);
+          a.face(mixExpr(s.exprPrev || s.expr, s.expr, s.exprU), blinkAt(T, r.seed), s.look || [0, 0]);
+          a.props(false, r.phoneG.some((g) => T >= g.t0 + 0.1 && T < g.t1 - 0.1));
+          a.outline(false);
+          if (r.umb) { a.root.updateMatrixWorld(true); r.umb.position.copy(a.root.position).add(new THREE.Vector3(0.08, 2.02, 0.05)); r.umb.rotation.set(0.12 * Math.sin(T * 0.7 + r.seed), 0, 0.08); }
+          if (r.boxes) {
+            const f1 = D.cue.fall1, fwd = new THREE.Vector3(Math.sin(s.yaw ?? 0), 0, Math.cos(s.yaw ?? 0));
+            sets.dyn.boxes.forEach((b, i) => {
+              const carry = [s.x + fwd.x * 0.42, 0.95 + i * 0.31, s.z + fwd.z * 0.42];
+              if (T < f1) { b.position.set(...carry); b.rotation.set(0, (s.yaw ?? 0) + (i % 2 ? 0.08 : -0.06), 0); return; }
+              const c0 = [0.2 + 0.42, 0.95 + i * 0.31, -1.95 + 0.42], v = [(i - 1.5) * 0.9, 1.6 + i * 0.5, 1.2 + i * 0.35];
+              const tl = (v[1] + Math.sqrt(v[1] * v[1] + 2 * 9.8 * (c0[1] - 0.15))) / 9.8, dt = Math.min(T - f1, tl);
+              b.position.set(c0[0] + v[0] * dt, c0[1] + v[1] * dt - 4.9 * dt * dt, c0[2] + v[2] * dt); b.rotation.set(dt * (3 + i), dt * 2, dt * (2 - i));
+            });
+          }
+        }
+        const L = actors.lead, ls = stateAt(roles.lead.keys, T); const gl = !!ls && ls.set === "cem" && set === "cem" && T < 13.7;
+        glow.visible = gl; glowL.intensity = gl ? 1.4 + 0.8 * Math.sin(T * 9) ** 2 : 0;
+        if (gl && L) { const off = new THREE.Vector3(0.17, 0.92, 0.07).applyAxisAngle(new THREE.Vector3(0, 1, 0), ls.yaw ?? 0); glow.position.copy(L.root.position).add(off); glowL.position.copy(glow.position); }
+      }
+
+      function shotAt(T) {
+        const s = D.shots.find((s) => T >= s.t0 && T < s.t1) || D.shots[D.shots.length - 1];
+        const u = easeIO((T - s.t0) / (s.t1 - s.t0)), l = (a, b) => a.map((v, i) => v + (b[i] - v) * u);
+        const hh = D.camera.handheld, ph = T * 0.9 + s.t0 * 3.1, dr = [Math.sin(ph) * hh, Math.sin(ph * 1.37 + 1.1) * hh * 0.7, 0];
+        return { s, pos: O(s.set, l(s.from.pos, s.to.pos)).map((v, i) => v + dr[i]), look: O(s.set, l(s.from.look, s.to.look)), fov: s.from.fov + ((s.to.fov ?? s.from.fov) - s.from.fov) * u };
+      }
+      let lastSet = null;
+      function setLook(set) {
+        if (set === lastSet) return; lastSet = set; const L = D.setLook[set], o = D.origin[set];
+        scene.background = new THREE.Color(L.bg); scene.fog = new THREE.Fog(L.fog[2], L.fog[0], L.fog[1]);
+        look.key.color.setHex(L.key[0]); look.key.intensity = L.key[1]; look.key.position.set(o[0] + L.key[2][0], o[1] + L.key[2][1], o[2] + L.key[2][2]); look.key.target.position.set(...o); look.key.target.updateMatrixWorld();
+        if (hemi) { hemi.color.setHex(L.fill[0]); hemi.groundColor.setHex(L.fill[1]); hemi.intensity = L.fill[2]; }
+        scene.environment = envs[set] ?? defaultEnv; scene.environmentIntensity = L.env ?? D.look.env.intensity;
+        renderer.toneMappingExposure = L.exp; sets.show(set);
+      }
+      const act = (t0, t1, T) => T >= t0 && T < t1;
+
+      function renderAt(T) {
+        const sh = shotAt(T), s = sh.s;
+        setLook(s.set); sets.update(T, D.cue); placeActors(T, s.set);
+        camera.fov = sh.fov; camera.updateProjectionMatrix(); camera.position.set(...sh.pos); camera.lookAt(...sh.look); camera.updateMatrixWorld();
+        if (s.faceKey && (s.faceKey.at || actors[s.faceKey.actor])) { const hp = s.faceKey.at ? new THREE.Vector3(...O(s.set, s.faceKey.at)) : actors[s.faceKey.actor].bones.Head.getWorldPosition(new THREE.Vector3()), fo = s.faceKey.offset;   /* faceKey.at: a set-local point instead of a head (the bolt insert, 2026-11-18) */
+          closeKey.position.set(hp.x + fo[0], hp.y + fo[1], hp.z + fo[2]); closeKey.target.position.copy(hp); closeKey.intensity = s.faceKey.intensity * 5; closeKey.color.setHex(s.faceKey.color ?? 0xffe2c4); closeKey.angle = s.faceKey.angle ?? 0.32; } else closeKey.intensity = 0;
+        const blurred = s.kind === "phone" || s.kind === "insert";
+        canvas.style.filter = blurred ? `blur(${s.blur ?? 12}px) brightness(0.72)` : "none"; canvas.style.transform = blurred ? "scale(1.06)" : "none";
+        applyPhone(ins, T, s.kind === "phone" ? { ...s.phone, t0: s.t0, t1: s.t1, bg: "blur" } : null);
+        applyMe(ins, T, s.insert === "me" ? { t0: s.t0, t1: s.t1, damage: s.me.damage } : null);
+        applyEndCard(ins, T, s.insert === "end" ? { t0: s.t0, t1: s.t1 + 1, dim: 0.2 } : null);   /* a lighter wash (V11) */
+        /* the big number: 412 races up to 812 and locks; +400 slams in on 'paid' */
+        const B = D.big, bOn = s.insert === "big"; big.style.opacity = bOn ? clamp01((T - s.t0) / 0.12) : 0;
+        if (bOn) { const Tq = Math.floor(T * 10) / 10, u = clamp01((Tq - B.raceAt) / (B.landAt - B.raceAt)), v = Math.round((B.from - 2 + (B.to - B.from) * (1 - (1 - u) ** 3)) / 10) * 10 + 2;   /* stepped at 10 Hz: a number that changes every frame measured as judder (V7, v1) */ bigNum.textContent = fmt(v);
+          const lz = T - B.landAt; bigNum.style.transform = `scale(${lz >= 0 && lz < 0.3 ? 1 + 0.08 * Math.sin(Math.PI * lz / 0.3) : 1}) rotate(${Math.sin(T * 1.4) * 1.2}deg)`;
+          const c = T - B.chipAt; bigChip.textContent = B.chip; bigChip.style.opacity = clamp01(c / 0.1); bigChip.style.transform = `scale(${c >= 0 ? 0.4 + 0.6 * back(c / 0.3) : 0.4}) rotate(${-4 + Math.sin(T * 2) * 1.5}deg)`; }
+        /* the days meter */
+        const Mt = D.meter, mOn = !Mt.hide.some(([a, b]) => act(a, b, T)) && s.insert !== "big";
+        meter.style.opacity = mOn ? 1 : 0;
+        if (mOn) { const st = [...Mt.steps].reverse().find((x) => T >= x[0]); mNum.textContent = fmt(st[1]);
+          const g = clamp01((T - Mt.goalAt) / 0.4); mGoal.style.opacity = g; mBar.style.opacity = g; mBar.style.display = g > 0 ? "block" : "none"; mGoal.style.display = g > 0 ? "inline" : "none";
+          mFill.style.width = (100 * Math.min(1, st[1] / 2000)).toFixed(2) + "%";
+          const dt = T - st[0], ch = st[2] && dt < 1.3; mChip.textContent = ch ? st[2] : ""; mChip.style.opacity = ch ? clamp01(dt / 0.15) * (1 - clamp01((dt - 0.9) / 0.4)) : 0;
+          mChip.style.background = st[2] && st[2][0] === "+" ? "#2fbf5a" : "#d8363a"; mChip.style.transform = `scale(${ch ? 0.5 + 0.5 * back(dt / 0.3) : 0.5})`;
+          mNum.style.transform = `scale(${dt < 0.3 && st[2] ? 1 + 0.18 * Math.sin(Math.PI * dt / 0.3) : 1})`;
+          meter.style.boxShadow = `0 0 ${24 + 8 * Math.sin(T * 3.2)}px 6px rgba(255,166,48,${(0.45 + 0.15 * Math.sin(T * 3.2)).toFixed(3)}), 0 10px 22px rgba(0,0,0,0.32)`; }
+        /* the two cards: card one on L16, card two on L17; both leave for the end card */
+        const C = D.cards, out = 1 - clamp01((T - C.t1) / 0.2);
+        const ca = T >= C.a.t0 ? easeOut((T - C.a.t0) / 0.4) * out : 0, cb = T >= C.b.t0 ? easeOut((T - C.b.t0) / 0.4) * out : 0;
+        cA.style.opacity = (ca * (1 - 0.5 * cb)).toFixed(3); cB.style.opacity = cb.toFixed(3);
+        cA.style.transform = `translateY(${(1 - ca) * -70 + Math.sin(T * 1.5) * 8}px) rotate(${Math.sin(T * 1.2) * 1.2 - 2}deg) scale(${0.88 + 0.12 * ca - 0.06 * cb})`;
+        cB.style.transform = `translateY(${(1 - cb) * -70 + Math.sin(T * 1.5 + 2) * 8}px) rotate(${Math.sin(T * 1.2 + 1) * 1.2 + 2}deg) scale(${0.88 + 0.12 * cb})`;
+        applyOverlay(overlay, T, { stamp: [], captions: D.captions, bubbles: [], banner: [] }, 0);
+        overlay.flash.style.opacity = 0;
+        look.render(T, 0);
+      }
+
+      const ready = (async () => {
+        const rig = await loadRig("assets/ual/UAL1_Standard.glb");
+        for (const [k, r] of Object.entries(roles)) { actors[k] = makeActor(rig, r.look); scene.add(actors[k].root); }
+      })();
+      window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {}; window.__hf.buildReady["part2"] = ready;
+      window.__lab = { actors, renderAt, THREE, D, scene, renderer, look, camera };   /* scene/renderer/look/camera: for bench_frame.mjs */
+      let queue = ready;
+      window.addEventListener("hf-seek", (e) => { const time = e.detail.time; queue = queue.catch(() => {}).then(() => ready).then(() => renderAt(time)); e.detail.waitUntil?.(queue); });
+      ready.then(() => renderAt(window.__hfThreeTime || 0)).catch((err) => { console.error(err); throw err; });
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true }); window.__timelines["main"] = tl; tl.seek(0);
+    </script>
+  </body>
+</html>

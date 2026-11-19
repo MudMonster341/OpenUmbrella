@@ -218,45 +218,12 @@ git commit failed.
 }
 
 # --- push -------------------------------------------------------------------
-if ($pushBlocker) {
-    Stop-Checkpoint "Committed locally, but CANNOT PUSH.
-
-  $pushBlocker
-
-  Your work is safe in the local commit above. It is not backed up until this is fixed." 3
-}
-
-if ($upstream) {
-    $ahead = (git rev-list --count "$upstream..HEAD").Trim()
-    if ($ahead -eq '0') {
-        Write-Host "Already up to date with $upstream; nothing to push."
-        exit 0
-    }
-    git push $remote $branch
-    if ($LASTEXITCODE -ne 0) {
-        Stop-Checkpoint "git push to $remote/$branch failed.
-
-  Your work is safe in the local commit; it is NOT on the remote yet.
-
-  Common causes:
-    - No credentials. Set up Git Credential Manager or an SSH key, then re-run.
-    - Non-fast-forward: the remote has commits you do not.
-      Fix with:  git pull --rebase $remote $branch   then re-run this script.
-      Never with --force: that destroys the history this system exists to preserve." 5
-    }
-} else {
-    Write-Host "Branch '$branch' has no upstream; setting it to $remote/$branch."
-    git push --set-upstream $remote $branch
-    if ($LASTEXITCODE -ne 0) {
-        Stop-Checkpoint "git push --set-upstream $remote $branch failed.
-
-  Your work is safe in the local commit; it is NOT on the remote yet.
-
-  Check that the remote exists and that you have credentials for it:
-      git remote -v
-      git ls-remote $remote" 5
-    }
-}
-
-Write-Host "Pushed $branch to $remote. Checkpoint complete." -ForegroundColor Green
-exit 0
+# NEVER `git push` this branch: the GitHub repo is public and local commits hold our stories (scripts, narration, plot).
+# Code goes out only through tools/publish/publish_code.py, which strips every story path, scans for story words and media,
+# pushes a separate public branch (origin/code-only) and verifies the remote. (The user, 2026-11-16: "push code, keep story local".)
+python tools/publish/publish_code.py
+$rc = $LASTEXITCODE
+if ($rc -eq 0) { Write-Host "Checkpoint complete: committed locally; code published to origin/code-only." -ForegroundColor Green; exit 0 }
+if ($rc -eq 1) { Stop-Checkpoint "Committed locally, but the publish checks BLOCKED the push (story words, media or a large file in the code tree).
+  Read the list above, add the path to tools/publish/private_paths.txt or remove the words, commit, and re-run." 6 }
+Stop-Checkpoint "Committed locally, but the push failed. Your work is safe in the local commit. See the error above." 5

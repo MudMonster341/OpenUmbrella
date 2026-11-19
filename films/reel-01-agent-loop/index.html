@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #eae9e5; }
+      #root { width: 100%; height: 100%; position: relative; }
+      #page { position: absolute; inset: 0; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-fps="24" data-start="0"
+         data-duration="20" data-width="1080" data-height="1920">
+      <canvas id="page" class="clip" data-start="0" data-duration="20"
+              data-track-index="0" data-layout-allow-overflow></canvas>
+    </div>
+
+    <script type="module">
+      /* ===================================================================
+         reel-01 — "an agent is a loop, not a chatbot"
+         House style: swiss-motion (lemo-opuscar, CC BY-NC 4.0, attribution
+         required, non-commercial). ADR 0012. We take the GRAMMAR, never
+         their story, shots, props or timings.
+
+         24 fps at 120 BPM so every subdivision is a whole frame:
+           1/4 = 0.5s = 12f   1/8 = 0.25s = 6f   1/16 = 0.125s = 3f
+         At 30fps an eighth is 7.5 frames and onsets flicker (STYLE §9).
+         =================================================================== */
+
+      const W = 1080, H = 1920, FPS = 24, DUR = 20;
+      const BPM = 120, BEAT = 60 / BPM;          // 0.5s
+      const b = (n) => n * BEAT;                  // beat number -> seconds
+      const N8 = BEAT / 2, N16 = BEAT / 4;
+
+      /* --- palette: page, ink, two greys, ONE signal colour (STYLE §3) --- */
+      const PAGE   = "#eae9e5";
+      const PAPER  = "#ffffff";
+      const INK    = "#111111";
+      const GREY   = "#b9b7b1";   // secondary voice, under the black
+      const GRID   = "#d6d4ce";   // grid lines on page
+      const SIGNAL = "#ff5a00";   // the loop. The only saturated thing.
+
+      /* --- grid: vertical adaptation of STYLE §2, see ADR 0012 --- */
+      const MARGIN = 72, COLS = 6, GUTTER = 24;
+      const COLW = (W - 2 * MARGIN - (COLS - 1) * GUTTER) / COLS;  // 136
+      const colX = (i) => MARGIN + i * (COLW + GUTTER);
+      const span = (n) => n * COLW + (n - 1) * GUTTER;
+      const BASE = 24;
+      const row = (n) => n * BASE;
+
+      const cv = document.getElementById("page");
+      cv.width = W; cv.height = H;
+      const g = cv.getContext("2d");
+
+      /* ---------------- easing: TWO curves only (STYLE §5) -------------- */
+      /* precise ease for snaps; linear for drawn lines, playhead, exception */
+      function bezier(p1x, p1y, p2x, p2y) {
+        const cx = 3 * p1x, bx = 3 * (p2x - p1x) - cx, ax = 1 - cx - bx;
+        const cy = 3 * p1y, by = 3 * (p2y - p1y) - cy, ay = 1 - cy - by;
+        const fx = (t) => ((ax * t + bx) * t + cx) * t;
+        const dx = (t) => (3 * ax * t + 2 * bx) * t + cx;
+        return (x) => {
+          if (x <= 0) return 0;
+          if (x >= 1) return 1;
+          let t = x;
+          for (let i = 0; i < 6; i++) {
+            const e = fx(t) - x, d = dx(t);
+            if (Math.abs(e) < 1e-6) break;
+            if (Math.abs(d) < 1e-6) break;
+            t -= e / d;
+          }
+          t = Math.min(1, Math.max(0, t));
+          return ((ay * t + by) * t + cy) * t;
+        };
+      }
+      const PRECISE = bezier(0.7, 0, 0.2, 1);
+      const clamp01 = (v) => Math.min(1, Math.max(0, v));
+
+      /* A snap STARTS one note value early and LANDS on the beat (STYLE §5) */
+      const snap = (t, arriveSec, dur = N8) => PRECISE(clamp01((t - (arriveSec - dur)) / dur));
+      const lin  = (t, startSec, dur) => clamp01((t - startSec) / dur);
+
+      /* ---------------- type ---------------- */
+      const FAM = "Archivo, 'Helvetica Neue', Arial, sans-serif";
+      function font(size, weight = 600) {
+        g.font = `${weight} ${size}px ${FAM}`;
+        g.letterSpacing = size >= 90 ? "-0.02em" : "0em";
+        return g;
+      }
+
+      /* Entrances are wipes or CLIP-REVEALS, never fades (STYLE §5).
+         The word rises out of a clip rect from below its baseline. */
+      function clipText(text, x, baseY, size, weight, colour, p, out = 0) {
+        if (p <= 0 || out >= 1) return;
+        font(size, weight);
+        const w = g.measureText(text).width;   // measure AFTER setting the font
+        g.save();
+        g.beginPath();
+        g.rect(x - 4, baseY - size * 1.05, w + 8, size * 1.35);
+        g.clip();
+        g.fillStyle = colour;
+        const dy = (1 - PRECISE(p)) * size * 1.1 - PRECISE(out) * size * 1.4;
+        g.fillText(text, x, baseY + dy);
+        g.restore();
+      }
+
+      /* Lines grow along their length — linear, never eased (STYLE §5) */
+      function hline(x, y, len, p, colour = INK, thick = 2) {
+        if (p <= 0) return;
+        g.fillStyle = colour;
+        g.fillRect(x, y, len * p, thick);
+      }
+      function vline(x, y, len, p, colour = GRID, thick = 1) {
+        if (p <= 0) return;
+        g.fillStyle = colour;
+        g.fillRect(x, y, thick, len * p);
+      }
+
+      /* Bars are flat rects, overdrawn 1px at seams (STYLE §2) */
+      function bar(x, y, w, h, p, colour = INK) {
+        if (p <= 0) return;
+        g.fillStyle = colour;
+        g.fillRect(x, y, Math.ceil(w * PRECISE(p)) + 1, h);
+      }
+
+      /* Deletions are KNIFE CUTS: a line crosses in 1/16, then the element
+         collapses vertically to its midline in 1/8 (STYLE §5) */
+      function knife(t, at, x, y, w, h, draw) {
+        const cut = lin(t, at, N16);
+        const col = PRECISE(clamp01((t - (at + N16)) / N8));
+        const mid = y + h / 2;
+        g.save();
+        g.translate(0, mid);
+        g.scale(1, 1 - col);
+        g.translate(0, -mid);
+        draw();
+        g.restore();
+        if (cut > 0 && col < 1) {
+          g.fillStyle = INK;
+          g.fillRect(x - 12, mid - 1, (w + 24) * cut, 2);
+        }
+      }
+
+      /* ---------------- the timeline, in beats ---------------- */
+      /* HOOK 0-3s | TURN 3-6s | MEAT 6-19s | LANDING 19-22s | CTA 22-23s
+         docs/REEL_STRUCTURE.md                                            */
+      const T = {
+        gridIn:   b(0),    // page + grid draw
+        hook1:    b(2),    // "most agents"
+        hook2:    b(3),    // "are just chatbots"
+        cut:      b(6),    // knife through it
+        turn:     b(8),    // "the difference is one arrow"
+        turnOut:  b(11),   // and it LEAVES. STYLE §9: draw only when on screen.
+        botLabel: b(12),   // chatbot model
+        botA:     b(13),
+        botB:     b(14),
+        botStop:  b(16),
+        agLabel:  b(18),   // agent model
+        agA:      b(19),
+        agB:      b(21),
+        agC:      b(23),
+        loop:     b(24),   // THE EXCEPTION
+        land:     b(32),   // "a loop"
+        cta:      b(36),
+      };
+
+      /* ---------------- per-frame ---------------- */
+      function renderAt(time) {
+        const t = Math.max(0, Math.min(DUR, time));
+
+        /* page */
+        g.fillStyle = PAGE;
+        g.fillRect(0, 0, W, H);
+
+        /* --- the grid, drawn linearly on sixteenths (STYLE §5) --- */
+        for (let i = 0; i <= COLS; i++) {
+          const x = i < COLS ? colX(i) : colX(COLS - 1) + COLW;
+          const p = lin(t, T.gridIn + i * N16, b(2));
+          vline(x, row(5), row(70), p);
+        }
+
+        /* --- technical notes: a corner caption row (STYLE §4) --- */
+        font(19, 500);
+        g.fillStyle = GREY;
+        g.fillText("reel 01 · 1080×1920 · 24fps · 120bpm", MARGIN, row(3.4));
+        g.fillText(`col ${COLS} · mod ${COLW}px`, MARGIN, H - row(3.6));
+        g.textAlign = "right";
+        g.fillText(`bar ${String(Math.floor(t / (BEAT * 4)) + 1).padStart(2, "0")}`,
+                   W - MARGIN, H - row(3.6));
+        g.textAlign = "left";
+
+        /* --- playhead: linear, every frame. Part of the layout, and the
+               honest answer to filmcheck M1 — see ADR 0012. --- */
+        g.fillStyle = GREY;
+        g.fillRect(MARGIN, H - row(2.2), W - 2 * MARGIN, 1);
+        g.fillStyle = INK;
+        g.fillRect(MARGIN, H - row(2.2) - 1, (W - 2 * MARGIN) * (t / DUR), 3);
+
+        /* ================= HOOK 0-3s ================= */
+        /* Pattern interrupt: the claim is wrong, and the film corrects it. */
+        const hookAlive = t < T.cut + N16 + N8;
+        if (hookAlive) {
+          const drawHook = () => {
+            clipText("most “agents”", colX(0), row(16), 104, 800, INK, snap(t, T.hook1, N16));
+            clipText("are just chatbots.", colX(0), row(21), 104, 800, INK, snap(t, T.hook2, N16));
+          };
+          if (t >= T.cut) {
+            knife(t, T.cut, colX(0), row(12.5), span(6), row(9.5), drawHook);
+          } else {
+            drawHook();
+          }
+        }
+
+        /* ================= TURN 3-6s ================= */
+        if (t >= T.turn - N8 && t < T.turnOut + N8) {
+          const o1 = snap(t, T.turnOut, N8), o2 = snap(t, T.turnOut + N16, N8);
+          clipText("the difference", colX(0), row(16), 92, 600, INK, snap(t, T.turn, N16), o1);
+          clipText("is one arrow.", colX(0), row(20), 92, 600, INK, snap(t, T.turn + N8, N16), o2);
+          hline(colX(0), row(22.2), span(4),
+                lin(t, T.turn + BEAT, N8) * (1 - snap(t, T.turnOut, N8)), INK, 3);
+        }
+
+        /* ================= MEAT 6-19s ================= */
+        /* The grid MEANS something (STYLE §8): one row = one turn of the
+           system. A chatbot uses one row and stops. An agent keeps going. */
+        const BOT_Y = row(33), AG_Y = row(46), RH = row(3.4);
+
+        if (t >= T.botLabel - N8 && t < T.land - N8) {
+          const o = snap(t, T.land - BEAT, N8);
+          clipText("two shapes.", colX(0), row(16), 92, 800, INK,
+                   snap(t, T.botLabel, N16), o);
+          hline(colX(0), row(18.2), span(6),
+                lin(t, T.botLabel + N8, N8) * (1 - o), INK, 3);
+          font(19, 500); g.fillStyle = GREY;
+          if (o < 0.5) g.fillText("one of them finishes. one of them continues.",
+                                  colX(0), row(20.4));
+        }
+
+        if (t >= T.botLabel - N8 && t < T.land - N8) {
+          font(19, 500); g.fillStyle = GREY;
+          g.fillText("ONE TURN", colX(0), BOT_Y - row(1.4));
+          hline(colX(0), BOT_Y - row(0.8), span(6), snap(t, T.botLabel, N8), GREY, 1);
+
+          bar(colX(0), BOT_Y, span(2), RH, snap(t, T.botA, N8), INK);
+          bar(colX(3), BOT_Y, span(2), RH, snap(t, T.botB, N8), GREY);
+          font(27, 600); g.fillStyle = PAPER;
+          if (snap(t, T.botA, N8) > 0.9) g.fillText("PROMPT", colX(0) + 16, BOT_Y + row(2.1));
+          if (snap(t, T.botB, N8) > 0.9) { g.fillStyle = INK; g.fillText("REPLY", colX(3) + 16, BOT_Y + row(2.1)); }
+
+          /* the full stop: a solid block, the system ends */
+          bar(colX(5) + COLW - row(1.4), BOT_Y + RH / 2 - row(0.7), row(1.4), row(1.4),
+              snap(t, T.botStop, N8), INK);
+        }
+
+        if (t >= T.agLabel - N8 && t < T.land - N8) {
+          font(19, 500); g.fillStyle = GREY;
+          g.fillText("A LOOP", colX(0), AG_Y - row(1.4));
+          hline(colX(0), AG_Y - row(0.8), span(6), snap(t, T.agLabel, N8), GREY, 1);
+
+          const steps = [["PLAN", T.agA], ["ACT", T.agB], ["OBSERVE", T.agC]];
+          steps.forEach(([label, at], i) => {
+            const y = AG_Y + i * row(5);
+            bar(colX(0), y, span(3), RH, snap(t, at, N8), INK);
+            if (snap(t, at, N8) > 0.9) {
+              font(27, 600); g.fillStyle = PAPER;
+              g.fillText(label, colX(0) + 16, y + row(2.1));
+            }
+          });
+        }
+
+        /* --- THE EXCEPTION (STYLE §8). The return arrow is the only
+               saturated thing, the only unsnapped move, and the subject. --- */
+        if (t >= T.loop && t < T.land - N8) {
+          const x0 = colX(3) + 70;
+          const yTop = AG_Y + row(1.7);
+          const yBot = AG_Y + 2 * row(5) + row(1.7);
+
+          /* out from OBSERVE, up the right, back into PLAN */
+          const legs = [
+            [[colX(3) - 20, yBot], [x0 + 210, yBot]],
+            [[x0 + 210, yBot], [x0 + 210, yTop]],
+            [[x0 + 210, yTop], [colX(3) - 20, yTop]],
+          ];
+          const len = legs.map(([[ax, ay], [bx, by]]) => Math.hypot(bx - ax, by - ay));
+          const total = len.reduce((a, c) => a + c, 0);
+          const at = (u) => {                       // u in [0,1] -> point on path
+            let d = clamp01(u) * total;
+            for (let i = 0; i < legs.length; i++) {
+              if (d <= len[i] || i === legs.length - 1) {
+                const [[ax, ay], [bx, by]] = legs[i], q = len[i] ? d / len[i] : 0;
+                return [ax + (bx - ax) * Math.min(1, q), ay + (by - ay) * Math.min(1, q)];
+              }
+              d -= len[i];
+            }
+          };
+          const stroke = (u0, u1, w, colour) => {
+            if (u1 <= u0) return;
+            g.strokeStyle = colour; g.lineWidth = w; g.lineCap = "butt";
+            g.beginPath();
+            const steps = 48;
+            for (let i = 0; i <= steps; i++) {
+              const [px, py] = at(u0 + (u1 - u0) * (i / steps));
+              i ? g.lineTo(px, py) : g.moveTo(px, py);
+            }
+            g.stroke();
+          };
+
+          /* Lap 1: the path draws itself, linear — the exception never eases */
+          const lap1 = lin(t, T.loop, b(2));
+          stroke(0, lap1, 8, SIGNAL);   // the standing circuit, light
+
+          if (lap1 >= 1) {
+            /* arrow head lands on grid with the line */
+            g.fillStyle = SIGNAL;
+            g.beginPath();
+            g.moveTo(colX(3) - 14, yTop - 26);
+            g.lineTo(colX(3) - 14, yTop + 26);
+            g.lineTo(colX(3) - 66, yTop);
+            g.closePath(); g.fill();
+
+            /* And then it KEEPS GOING. A pulse runs the circuit once per bar.
+               This is the subject of the film stated as motion, and it is the
+               honest answer to filmcheck M1 for this style: a real moving
+               element that carries meaning, not jitter added to clear a gate.
+               ADR 0012. */
+            const u = ((t - (T.loop + b(2))) / (BEAT * 2)) % 1;
+            const tail = 0.17;
+            g.save();
+            g.globalAlpha = 1;
+            if (u - tail < 0) {                     // wrap across the seam
+              stroke(0, u, 22, SIGNAL);
+              stroke(1 + (u - tail), 1, 22, SIGNAL);
+            } else {
+              stroke(u - tail, u, 22, SIGNAL);
+            }
+            g.restore();
+          }
+
+          font(19, 500);
+          g.fillStyle = lap1 > 0.34 ? SIGNAL : GREY;
+          g.fillText(lap1 > 0.34 ? "off grid · returns" : "on grid", x0 + 240, yTop - row(1.2));
+        }
+
+        /* ================= LANDING 19-22s ================= */
+        /* Extreme scale contrast (STYLE §8): the idea, giant, flush left. */
+        if (t >= T.land - N8) {
+          const p1 = snap(t, T.land, N8), p2 = snap(t, T.land + N8, N16);
+          clipText("a loop,", colX(0), row(44), 168, 900, INK, p1);
+          clipText("not a reply.", colX(0), row(51), 168, 900, INK, p2);
+          hline(colX(0), row(54), span(6), lin(t, T.land + BEAT, N8), SIGNAL, 6);
+        }
+
+        /* ================= CTA 22-23s ================= */
+        /* One ask, flush left in the corner (STYLE §11 ending). */
+        if (t >= T.cta - N8) {
+          clipText("build the loop.", colX(0), row(60), 56, 600, INK, snap(t, T.cta, N16));
+        }
+      }
+
+      /* ---------------- HyperFrames harness ---------------- */
+      async function boot() {
+        try {
+          await document.fonts.load("800 104px Archivo");
+          await document.fonts.load("900 168px Archivo");
+          await document.fonts.load("500 19px Archivo");
+          await document.fonts.ready;
+        } catch (e) { /* fall back to the stack; never block the render */ }
+        renderAt(window.__hfThreeTime || 0);
+      }
+      window.addEventListener("hf-seek", (e) => renderAt(e.detail.time));
+      boot();
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

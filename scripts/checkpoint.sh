@@ -165,35 +165,14 @@ else
 fi
 
 # --- push -------------------------------------------------------------------
-[ -z "$PUSH_BLOCKER" ] || die "Committed locally, but CANNOT PUSH.
-
-  ${PUSH_BLOCKER}
-
-  Your work is safe in the local commit above. It is not backed up until this is fixed." 3
-
-if [ -n "$UPSTREAM" ]; then
-  if git rev-list --count "@{upstream}..HEAD" 2>/dev/null | grep -qx 0; then
-    say "Already up to date with ${UPSTREAM}; nothing to push."
-    exit 0
-  fi
-  git push "$REMOTE" "$BRANCH" || die "git push to ${REMOTE}/${BRANCH} failed.
-
-  Your work is safe in the local commit; it is NOT on the remote yet.
-
-  Common causes:
-    - No credentials. Set up a credential helper or an SSH key, then re-run.
-    - Non-fast-forward: the remote has commits you do not.
-      Fix with:  git pull --rebase ${REMOTE} ${BRANCH}   then re-run this script.
-      Never with --force: that destroys the history this system exists to preserve." 5
-else
-  say "Branch '${BRANCH}' has no upstream; setting it to ${REMOTE}/${BRANCH}."
-  git push --set-upstream "$REMOTE" "$BRANCH" || die "git push --set-upstream ${REMOTE} ${BRANCH} failed.
-
-  Your work is safe in the local commit; it is NOT on the remote yet.
-
-  Check that the remote exists and that you have credentials for it:
-      git remote -v
-      git ls-remote ${REMOTE}" 5
-fi
-
-say "Pushed ${BRANCH} to ${REMOTE}. Checkpoint complete."
+# NEVER `git push` this branch: the GitHub repo is public and local commits hold our stories (scripts, narration, plot).
+# Code goes out only through tools/publish/publish_code.py, which strips every story path, scans for story words and media,
+# pushes a separate public branch (origin/code-only) and verifies the remote. (The user, 2026-11-16: "push code, keep story local".)
+python tools/publish/publish_code.py
+rc=$?
+case $rc in
+  0) say "Checkpoint complete: committed locally; code published to origin/code-only." ;;
+  1) die "Committed locally, but the publish checks BLOCKED the push (story words, media or a large file in the code tree).
+  Read the list above, add the path to tools/publish/private_paths.txt or remove the words, commit, and re-run." 6 ;;
+  *) die "Committed locally, but the push failed. Your work is safe in the local commit. See the error above." 5 ;;
+esac

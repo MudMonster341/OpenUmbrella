@@ -1,0 +1,10 @@
+# Files that mix story with project notes. They keep their LAST PUBLIC version on GitHub (or stay off it if never public).
+MEMORY.md
+CONTEXT.md
+ROADMAP.md
+GOAL.md
+ERRORS.md
+STATUS.md
+AGENT_GUIDE.md
+docs/REPO_REGISTRY.md
+docs/LICENCE_AUDIT.md

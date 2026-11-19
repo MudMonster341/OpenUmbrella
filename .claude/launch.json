@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "story-lab",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "hyperframes@0.9.39", "preview", "--no-open", "--foreground", "--port=3002", "story_reel_foundation/lab"],
+      "port": 3002
+    }
+  ]
+}
